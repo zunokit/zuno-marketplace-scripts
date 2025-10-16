@@ -60,7 +60,7 @@ export class CreateERC1155Command extends BaseCommand {
 
       // Create the collection
       logger.info('Creating ERC1155 collection...');
-      const tx = await factory.createERC1155Collection(collectionParams);
+      const tx = await factory.createERC1155Collection!(collectionParams);
       const receipt = await waitForTransaction(tx, 'Create ERC1155 Collection');
 
       // Get collection address from event
@@ -108,9 +108,9 @@ export class CreateERC1155Command extends BaseCommand {
         context.provider.provider
       );
 
-      const name = await collection.name();
-      const symbol = await collection.symbol();
-      const owner = await collection.owner();
+      const name = await collection.name!();
+      const symbol = await collection.symbol!();
+      const owner = await collection.owner!();
 
       logger.info(`Name: ${name || '⚠️ Empty'}`);
       logger.info(`Symbol: ${symbol || '⚠️ Empty'}`);

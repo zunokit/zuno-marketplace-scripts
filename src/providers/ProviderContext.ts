@@ -55,7 +55,7 @@ export async function createProviderContext(
  * @param hubAddress - MarketplaceHub address
  * @returns Contract addresses
  */
-async function getContractAddresses(hubAddress: string): Promise<ContractAddresses> {
+async function getContractAddresses(_hubAddress: string): Promise<ContractAddresses> {
   try {
     const deploymentPath = path.resolve(
       __dirname,
@@ -72,17 +72,17 @@ async function getContractAddresses(hubAddress: string): Promise<ContractAddress
     });
 
     return {
-      erc721Factory: contracts.ERC721CollectionFactory,
-      erc1155Factory: contracts.ERC1155CollectionFactory,
-      erc721Exchange: contracts.ERC721NFTExchange,
-      erc1155Exchange: contracts.ERC1155NFTExchange,
-      englishAuction: contracts.EnglishAuction || contracts.AuctionFactory,
-      dutchAuction: contracts.DutchAuction || contracts.AuctionFactory,
-      auctionFactory: contracts.AuctionFactory,
-      feeRegistry: contracts.FeeRegistry,
-      bundleManager: contracts.BundleManager,
-      offerManager: contracts.OfferManager,
-      listingHistoryTracker: contracts.ListingHistoryTracker,
+      erc721Factory: contracts.ERC721CollectionFactory || '',
+      erc1155Factory: contracts.ERC1155CollectionFactory || '',
+      erc721Exchange: contracts.ERC721NFTExchange || '',
+      erc1155Exchange: contracts.ERC1155NFTExchange || '',
+      englishAuction: contracts.EnglishAuction || contracts.AuctionFactory || '',
+      dutchAuction: contracts.DutchAuction || contracts.AuctionFactory || '',
+      auctionFactory: contracts.AuctionFactory || '',
+      feeRegistry: contracts.FeeRegistry || '',
+      bundleManager: contracts.BundleManager || '',
+      offerManager: contracts.OfferManager || '',
+      listingHistoryTracker: contracts.ListingHistoryTracker || '',
     };
   } catch (error) {
     throw new Error(

@@ -18,15 +18,15 @@ export async function detectNFTStandard(
 ): Promise<NFTStandard> {
   try {
     // Try ERC165 interface detection
-    const isERC721 = await contract.supportsInterface('0x80ac58cd');
+    const isERC721 = await contract.supportsInterface!('0x80ac58cd');
     if (isERC721) return 'ERC721';
 
-    const isERC1155 = await contract.supportsInterface('0xd9b67a26');
+    const isERC1155 = await contract.supportsInterface!('0xd9b67a26');
     if (isERC1155) return 'ERC1155';
   } catch {
     // Fallback: try ERC721-specific function
     try {
-      await contract.ownerOf(tokenId);
+      await contract.ownerOf!(tokenId);
       return 'ERC721';
     } catch {
       return 'ERC1155';
@@ -52,7 +52,7 @@ export async function getNFTInfo(
   const address = await contract.getAddress();
 
   if (standard === 'ERC721') {
-    const owner = await contract.ownerOf(tokenId);
+    const owner = await contract.ownerOf!(tokenId);
     return {
       address,
       tokenId,
@@ -60,7 +60,7 @@ export async function getNFTInfo(
       owner,
     };
   } else {
-    const balance = await contract.balanceOf(ownerAddress, tokenId);
+    const balance = await contract.balanceOf!(ownerAddress, tokenId);
     return {
       address,
       tokenId,
@@ -87,10 +87,10 @@ export async function checkOwnership(
   const standard = await detectNFTStandard(contract, tokenId);
 
   if (standard === 'ERC721') {
-    const owner = await contract.ownerOf(tokenId);
+    const owner = await contract.ownerOf!(tokenId);
     return owner.toLowerCase() === ownerAddress.toLowerCase();
   } else {
-    const balance = await contract.balanceOf(ownerAddress, tokenId);
+    const balance = await contract.balanceOf!(ownerAddress, tokenId);
     if (amount) {
       return balance >= BigInt(amount);
     }
@@ -116,7 +116,7 @@ export async function checkApproval(
     // For ERC721, check both specific token approval and operator approval
     if (tokenId !== undefined) {
       try {
-        const approved = await contract.getApproved(tokenId);
+        const approved = await contract.getApproved!(tokenId);
         if (approved.toLowerCase() === operatorAddress.toLowerCase()) {
           return true;
         }
@@ -126,7 +126,7 @@ export async function checkApproval(
     }
 
     // Check operator approval (works for both ERC721 and ERC1155)
-    return await contract.isApprovedForAll(ownerAddress, operatorAddress);
+    return await contract.isApprovedForAll!(ownerAddress, operatorAddress);
   } catch (error) {
     throw new Error(
       `Failed to check approval: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -149,14 +149,14 @@ export async function approveOperator(
   if (tokenId !== undefined) {
     // ERC721 specific approval
     try {
-      return await contract.approve(operatorAddress, tokenId);
+      return await contract.approve!(operatorAddress, tokenId);
     } catch {
       // Fall back to setApprovalForAll
     }
   }
 
   // Operator approval (works for both standards)
-  return await contract.setApprovalForAll(operatorAddress, true);
+  return await contract.setApprovalForAll!(operatorAddress, true);
 }
 
 /**

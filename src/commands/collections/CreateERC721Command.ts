@@ -6,7 +6,6 @@ import { ethers } from 'ethers';
 import { BaseCommand } from '../../core/Command.interface';
 import { CommandMetadata, CommandContext, CollectionParams } from '../../types';
 import { formatCollectionParams, waitForTransaction } from '../../providers/ProviderContext';
-import { validateAddress, validateNonEmptyString } from '../../utils';
 import { logger } from '../../utils/logger.utils';
 
 export class CreateERC721Command extends BaseCommand {
@@ -61,7 +60,7 @@ export class CreateERC721Command extends BaseCommand {
 
       // Create the collection
       logger.info('Creating ERC721 collection...');
-      const tx = await factory.createERC721Collection(collectionParams);
+      const tx = await factory.createERC721Collection!(collectionParams);
       const receipt = await waitForTransaction(tx, 'Create ERC721 Collection');
 
       // Get collection address from event
@@ -109,9 +108,9 @@ export class CreateERC721Command extends BaseCommand {
         context.provider.provider
       );
 
-      const name = await collection.name();
-      const symbol = await collection.symbol();
-      const owner = await collection.owner();
+      const name = await collection.name!();
+      const symbol = await collection.symbol!();
+      const owner = await collection.owner!();
 
       logger.info(`Name: ${name || '⚠️ Empty'}`);
       logger.info(`Symbol: ${symbol || '⚠️ Empty'}`);

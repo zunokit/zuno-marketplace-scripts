@@ -31,10 +31,10 @@ export abstract class BaseCommand implements ICommand {
   /**
    * Validates command arguments
    * Override this method to add custom validation
-   * @param args - Arguments to validate
+   * @param _args - Arguments to validate
    * @throws {Error} If validation fails
    */
-  protected validate(args?: any): void {
+  protected validate(_args?: any): void {
     // Default implementation does nothing
     // Override in subclasses for specific validation
   }

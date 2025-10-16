@@ -34,7 +34,6 @@ const config: LoggerConfig = {
  * @param data - Optional data to log
  */
 function log(level: LogLevel, message: string, data?: any): void {
-  const timestamp = new Date().toISOString();
   const prefix = getPrefix(level);
 
   console.log(`${prefix} ${message}`);
