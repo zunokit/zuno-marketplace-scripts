@@ -7,6 +7,7 @@ import { BaseCommand } from '@core/Command.interface';
 import { CommandMetadata, CommandContext, MintParams } from '@types';
 import { waitForTransaction } from '@/providers/ProviderContext';
 import { validateAddress, validatePositiveNumber, logger } from '@utils';
+import { ERC721_COLLECTION_ABI } from '@/shared/abis/collectionAbis';
 
 export class MintERC721Command extends BaseCommand {
   metadata: CommandMetadata = {
@@ -31,10 +32,12 @@ export class MintERC721Command extends BaseCommand {
       const { provider } = context;
       const recipient = args.recipient || provider.account;
 
-      // Get ERC721Collection ABI from API
-      const collectionABI = await context.abiProvider.getABI('ERC721Collection');
-
-      const collection = new ethers.Contract(args.collectionAddress, collectionABI, provider.signer);
+      // Use minimal ERC721 Collection ABI (not available in API - deployed dynamically)
+      const collection = new ethers.Contract(
+        args.collectionAddress,
+        ERC721_COLLECTION_ABI,
+        provider.signer
+      );
 
       // Display collection info
       await this.displayCollectionInfo(collection, args.collectionAddress);

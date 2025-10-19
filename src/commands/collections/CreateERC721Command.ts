@@ -10,6 +10,7 @@ import {
   waitForTransaction,
 } from "@/providers/ProviderContext";
 import { logger } from "@utils";
+import { ERC721_COLLECTION_ABI } from "@/shared/abis/collectionAbis";
 
 export class CreateERC721Command extends BaseCommand {
   metadata: CommandMetadata = {
@@ -122,17 +123,9 @@ export class CreateERC721Command extends BaseCommand {
     logger.subsection("Verifying Collection");
 
     try {
-      // Use minimal ERC721 ABI for verification
-      const minimalERC721ABI = [
-        "function name() view returns (string)",
-        "function symbol() view returns (string)",
-        "function owner() view returns (address)",
-        "function totalSupply() view returns (uint256)",
-      ];
-
       const collection = new ethers.Contract(
         collectionAddress,
-        minimalERC721ABI,
+        ERC721_COLLECTION_ABI,
         context.provider.provider
       );
 

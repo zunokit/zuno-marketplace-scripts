@@ -7,6 +7,7 @@ import { BaseCommand } from '@core/Command.interface';
 import { CommandMetadata, CommandContext, CollectionParams } from '@types';
 import { formatCollectionParams, waitForTransaction } from '@/providers/ProviderContext';
 import { logger } from '@utils';
+import { ERC1155_COLLECTION_ABI } from '@/shared/abis/collectionAbis';
 
 export class CreateERC1155Command extends BaseCommand {
   metadata: CommandMetadata = {
@@ -101,16 +102,9 @@ export class CreateERC1155Command extends BaseCommand {
     logger.subsection('Verifying Collection');
 
     try {
-      // Use minimal ERC1155 ABI for verification
-      const minimalERC1155ABI = [
-        'function name() view returns (string)',
-        'function symbol() view returns (string)',
-        'function owner() view returns (address)',
-      ];
-
       const collection = new ethers.Contract(
         collectionAddress,
-        minimalERC1155ABI,
+        ERC1155_COLLECTION_ABI,
         context.provider.provider
       );
 
