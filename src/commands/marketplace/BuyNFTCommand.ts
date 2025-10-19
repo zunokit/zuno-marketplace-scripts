@@ -220,15 +220,16 @@ export class BuyNFTCommand extends BaseCommand {
       if (listing.amount > 1n) {
         logger.info(`Amount: ${listing.amount.toString()}`);
       }
-      logger.info(`Price: ${ethers.formatEther(listing.price)} ETH`);
+      logger.info(`Listing Price: ${ethers.formatEther(listing.price)} ETH`);
 
       const expirationDate = new Date(expirationTime * 1000);
       logger.info(`Expires: ${expirationDate.toLocaleString()}`);
       logger.space();
 
-      // Total price (listing.price already includes marketplace fees in the contract logic)
-      const totalPrice = listing.price;
-      logger.info(`Total Price: ${ethers.formatEther(totalPrice)} ETH`);
+      // Get total price including fees (royalty + taker fee)
+      // Contract has getBuyerSeesPrice which calculates: listing.price + royalty + takerFee
+      const totalPrice = await exchange.getBuyerSeesPrice!(listingId);
+      logger.info(`Total Price (with fees): ${ethers.formatEther(totalPrice)} ETH`);
 
       // STEP 5: Check buyer has sufficient balance
       const balance = await provider.provider.getBalance(provider.account);
