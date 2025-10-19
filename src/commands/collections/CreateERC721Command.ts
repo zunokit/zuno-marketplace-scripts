@@ -122,18 +122,25 @@ export class CreateERC721Command extends BaseCommand {
     logger.subsection("Verifying Collection");
 
     try {
-      const collectionABI = await context.abiProvider.getABI(
-        "ERC721Collection"
-      );
+      // Use minimal ERC721 ABI for verification
+      const minimalERC721ABI = [
+        "function name() view returns (string)",
+        "function symbol() view returns (string)",
+        "function owner() view returns (address)",
+        "function totalSupply() view returns (uint256)",
+      ];
+
       const collection = new ethers.Contract(
         collectionAddress,
-        collectionABI,
+        minimalERC721ABI,
         context.provider.provider
       );
 
-      const name = await collection.name!();
-      const symbol = await collection.symbol!();
-      const owner = await collection.owner!();
+      const [name, symbol, owner] = await Promise.all([
+        collection.name!(),
+        collection.symbol!(),
+        collection.owner!(),
+      ]);
 
       logger.info(`Name: ${name || "⚠️ Empty"}`);
       logger.info(`Symbol: ${symbol || "⚠️ Empty"}`);

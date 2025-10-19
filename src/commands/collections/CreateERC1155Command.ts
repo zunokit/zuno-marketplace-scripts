@@ -101,16 +101,24 @@ export class CreateERC1155Command extends BaseCommand {
     logger.subsection('Verifying Collection');
 
     try {
-      const collectionABI = await context.abiProvider.getABI('ERC1155Collection');
+      // Use minimal ERC1155 ABI for verification
+      const minimalERC1155ABI = [
+        'function name() view returns (string)',
+        'function symbol() view returns (string)',
+        'function owner() view returns (address)',
+      ];
+
       const collection = new ethers.Contract(
         collectionAddress,
-        collectionABI,
+        minimalERC1155ABI,
         context.provider.provider
       );
 
-      const name = await collection.name!();
-      const symbol = await collection.symbol!();
-      const owner = await collection.owner!();
+      const [name, symbol, owner] = await Promise.all([
+        collection.name!(),
+        collection.symbol!(),
+        collection.owner!(),
+      ]);
 
       logger.info(`Name: ${name || '⚠️ Empty'}`);
       logger.info(`Symbol: ${symbol || '⚠️ Empty'}`);
