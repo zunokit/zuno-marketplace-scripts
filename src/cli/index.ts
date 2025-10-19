@@ -54,12 +54,13 @@ class CLI {
 
     this.network = selectedNetwork;
 
+    // Create ABI provider first (needed for fetching contract addresses)
+    logger.info('Initializing ABI provider...');
+    const abiProvider = createABIProvider();
+
     // Create provider context
     logger.info('Connecting to network...');
     const provider = await createProviderContext(this.network);
-
-    // Create ABI provider (currently using manual, will switch to API later)
-    const abiProvider = createABIProvider('manual');
 
     this.context = {
       provider,

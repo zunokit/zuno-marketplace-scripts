@@ -3,7 +3,7 @@
  * Central registry for all available commands using Registry Pattern
  */
 
-import { ICommand } from '../types';
+import { ICommand } from '@types';
 
 /**
  * Command Registry - manages all available commands

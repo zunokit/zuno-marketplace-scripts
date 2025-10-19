@@ -4,10 +4,11 @@
  */
 
 import { ethers } from 'ethers';
-import * as fs from 'fs';
-import * as path from 'path';
-import { NetworkName, ProviderContext, ContractAddresses } from '../types';
-import { getNetworkConfig } from '../config/network.config';
+import { NetworkName, ProviderContext, ContractAddresses } from '@types';
+import { getNetworkConfig } from '@/config/network.config';
+import { ABIApiClient } from './abi/abi_api_client';
+import { abiApiConfig, validateABIApiConfig } from '@config/abi_api_config';
+import { logger } from '@utils';
 
 /**
  * Creates provider context for blockchain interactions
@@ -17,7 +18,7 @@ import { getNetworkConfig } from '../config/network.config';
 export async function createProviderContext(
   network: NetworkName = 'local'
 ): Promise<ProviderContext> {
-  const config = getNetworkConfig(network);
+  const config = await getNetworkConfig(network);
 
   // Create provider
   const provider = new ethers.JsonRpcProvider(config.rpcUrl);
@@ -31,15 +32,16 @@ export async function createProviderContext(
   const signer = await provider.getSigner(0);
   const account = await signer.getAddress();
 
-  // Get contract addresses
-  const addresses = await getContractAddresses(config.hubAddress);
+  // Get contract addresses from API
+  const addresses = await getContractAddresses(network);
 
   // Log connection info
-  console.log(`\n📡 Connected to ${network} network`);
-  console.log(`👤 Account: ${account}`);
+  logger.section(`Connected to ${network} network`);
+  logger.info(`Account: ${account}`);
 
   const balance = await provider.getBalance(account);
-  console.log(`💰 Balance: ${ethers.formatEther(balance)} ETH\n`);
+  logger.info(`Balance: ${ethers.formatEther(balance)} ETH`);
+  logger.space();
 
   return {
     provider,
@@ -51,42 +53,58 @@ export async function createProviderContext(
 }
 
 /**
- * Gets contract addresses from deployment file
- * @param hubAddress - MarketplaceHub address
+ * Gets contract addresses from ABI API
+ * @param network - Network name
  * @returns Contract addresses
  */
-async function getContractAddresses(_hubAddress: string): Promise<ContractAddresses> {
+async function getContractAddresses(network: NetworkName): Promise<ContractAddresses> {
   try {
-    const deploymentPath = path.resolve(
-      __dirname,
-      '../../../zuno-marketplace-contracts/broadcast/DeployAll.s.sol/31337/run-latest.json'
-    );
+    // Validate API config
+    validateABIApiConfig(abiApiConfig);
 
-    const deployment = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'));
+    // Create API client
+    const apiClient = new ABIApiClient(abiApiConfig.baseUrl, abiApiConfig.apiKey);
 
-    const contracts: Record<string, string> = {};
-    deployment.transactions.forEach((tx: any) => {
-      if (tx.contractName && tx.contractAddress) {
-        contracts[tx.contractName] = tx.contractAddress;
-      }
-    });
+    logger.info(`Fetching contract addresses for ${network} network...`);
 
-    return {
-      erc721Factory: contracts.ERC721CollectionFactory || '',
-      erc1155Factory: contracts.ERC1155CollectionFactory || '',
-      erc721Exchange: contracts.ERC721NFTExchange || '',
-      erc1155Exchange: contracts.ERC1155NFTExchange || '',
-      englishAuction: contracts.EnglishAuction || contracts.AuctionFactory || '',
-      dutchAuction: contracts.DutchAuction || contracts.AuctionFactory || '',
-      auctionFactory: contracts.AuctionFactory || '',
-      feeRegistry: contracts.FeeRegistry || '',
-      bundleManager: contracts.BundleManager || '',
-      offerManager: contracts.OfferManager || '',
-      listingHistoryTracker: contracts.ListingHistoryTracker || '',
+    // Fetch deployed contracts for this network
+    const addressMap = await apiClient.fetchDeployedContracts(network);
+
+    logger.success(`✓ Loaded ${addressMap.size} contract addresses`);
+
+    // Map to ContractAddresses structure
+    const addresses: ContractAddresses = {
+      erc721Factory: addressMap.get('ERC721CollectionFactory') || '',
+      erc1155Factory: addressMap.get('ERC1155CollectionFactory') || '',
+      erc721Exchange: addressMap.get('ERC721NFTExchange') || '',
+      erc1155Exchange: addressMap.get('ERC1155NFTExchange') || '',
+      englishAuction: addressMap.get('EnglishAuction') || addressMap.get('AuctionFactory') || '',
+      dutchAuction: addressMap.get('DutchAuction') || addressMap.get('AuctionFactory') || '',
+      auctionFactory: addressMap.get('AuctionFactory') || '',
+      feeRegistry: addressMap.get('FeeRegistry') || '',
+      bundleManager: addressMap.get('BundleManager') || '',
+      offerManager: addressMap.get('OfferManager') || '',
+      listingHistoryTracker: addressMap.get('ListingHistoryTracker') || '',
     };
+
+    // Validate critical addresses
+    const missingAddresses: string[] = [];
+    if (!addresses.erc721Factory) missingAddresses.push('ERC721CollectionFactory');
+    if (!addresses.erc1155Factory) missingAddresses.push('ERC1155CollectionFactory');
+
+    if (missingAddresses.length > 0) {
+      logger.warning(
+        `Missing critical contract addresses: ${missingAddresses.join(', ')}`
+      );
+      logger.warning(
+        `Make sure contracts are registered in the ABI API for network: ${network}`
+      );
+    }
+
+    return addresses;
   } catch (error) {
     throw new Error(
-      `Could not read contract addresses from deployment file: ${error instanceof Error ? error.message : 'Unknown error'}`
+      `Failed to fetch contract addresses from API: ${error instanceof Error ? error.message : 'Unknown error'}`
     );
   }
 }

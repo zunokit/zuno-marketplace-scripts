@@ -4,10 +4,10 @@
  */
 
 import { ethers } from 'ethers';
-import { BaseCommand } from '../../core/Command.interface';
-import { CommandMetadata, CommandContext } from '../../types';
-import { waitForTransaction } from '../../providers/ProviderContext';
-import { validateAddress, logger } from '../../utils';
+import { BaseCommand } from '@core/Command.interface';
+import { CommandMetadata, CommandContext } from '@types';
+import { waitForTransaction } from '@/providers/ProviderContext';
+import { validateAddress, logger } from '@utils';
 
 interface CreateBundleParams {
   nftAddresses: string[]; // comma-separated

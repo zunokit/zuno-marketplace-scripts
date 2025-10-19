@@ -4,9 +4,9 @@
  */
 
 import inquirer from 'inquirer';
-import { commandRegistry } from '../core/CommandRegistry';
-import { NetworkName } from '../types';
-import { getAvailableNetworks } from '../config/network.config';
+import { commandRegistry } from '@core/CommandRegistry';
+import { NetworkName } from '@types';
+import { getAvailableNetworks } from '@config/network.config';
 
 /**
  * Main menu prompt
@@ -65,7 +65,7 @@ export async function promptCategoryCommands(category: string): Promise<string> 
  * Network selection prompt
  */
 export async function promptNetwork(): Promise<NetworkName | 'exit'> {
-  const networks = getAvailableNetworks();
+  const networks = await getAvailableNetworks();
 
   const { network } = await inquirer.prompt([
     {
@@ -73,7 +73,7 @@ export async function promptNetwork(): Promise<NetworkName | 'exit'> {
       name: 'network',
       message: 'Select network:',
       choices: [
-        ...networks.map(net => ({
+        ...networks.map((net: NetworkName) => ({
           name: net.charAt(0).toUpperCase() + net.slice(1),
           value: net,
         })),

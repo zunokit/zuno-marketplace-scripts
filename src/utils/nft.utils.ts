@@ -4,7 +4,7 @@
  */
 
 import { ethers } from 'ethers';
-import { NFTStandard, NFTInfo } from '../types';
+import { NFTStandard, NFTInfo } from '@types';
 
 /**
  * Detects NFT standard (ERC721 or ERC1155)

@@ -3,10 +3,10 @@
  */
 
 import { ethers } from 'ethers';
-import { BaseCommand } from '../../core/Command.interface';
-import { CommandMetadata, CommandContext, MintParams } from '../../types';
-import { waitForTransaction } from '../../providers/ProviderContext';
-import { validateAddress, validatePositiveNumber, logger } from '../../utils';
+import { BaseCommand } from '@core/Command.interface';
+import { CommandMetadata, CommandContext, MintParams } from '@types';
+import { waitForTransaction } from '@/providers/ProviderContext';
+import { validateAddress, validatePositiveNumber, logger } from '@utils';
 
 export class MintERC1155Command extends BaseCommand {
   metadata: CommandMetadata = {

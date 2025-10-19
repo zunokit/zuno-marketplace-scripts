@@ -13,7 +13,6 @@ export type NetworkName = 'local' | 'sepolia' | 'mainnet';
 
 export interface NetworkConfig {
   rpcUrl: string;
-  hubAddress: string;
   chainId: number;
 }
 
@@ -107,11 +106,68 @@ export interface ICommand {
 // ============================================================================
 
 export interface IABIProvider {
-  getABI(contractName: string): Promise<any>;
+  getABI(contractName: string, options?: ABIFetchOptions): Promise<any>;
   getContractInterface(contractName: string): Promise<ethers.Interface>;
 }
 
-export type ABIProviderType = 'manual' | 'api';
+export type ABIProviderType = 'api';
+
+export interface ABIFetchOptions {
+  version?: string; // '1.0.0' or 'latest'
+  abiHash?: string; // For exact pinning
+  bypassCache?: boolean;
+}
+
+// ============================================================================
+// ABI API Response Types
+// ============================================================================
+
+export interface ABIApiResponse {
+  success: boolean;
+  data: {
+    data: ABIItemDto[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+      hasNext: boolean;
+      hasPrev: boolean;
+    };
+  };
+  meta: {
+    timestamp: string;
+    version: string;
+  };
+}
+
+export interface ABIItemDto {
+  id: string;
+  name: string;
+  description: string | null;
+  contractName: string | null;
+  abi: any; // The actual ABI JSON
+  abiHash: string;
+  version: string;
+  tags: string[];
+  standard: string | null;
+  metadata: Record<string, any> | null;
+  ipfsHash: string | null;
+  ipfsUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CachedABI {
+  abi: any;
+  metadata: {
+    contractName: string;
+    version: string;
+    abiHash: string;
+    cachedAt: number;
+    expiresAt: number;
+  };
+}
 
 // ============================================================================
 // NFT Types

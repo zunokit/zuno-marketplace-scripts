@@ -3,10 +3,10 @@
  */
 
 import { ethers } from 'ethers';
-import { BaseCommand } from '../../core/Command.interface';
-import { CommandMetadata, CommandContext, CollectionParams } from '../../types';
-import { formatCollectionParams, waitForTransaction } from '../../providers/ProviderContext';
-import { logger } from '../../utils/logger.utils';
+import { BaseCommand } from '@core/Command.interface';
+import { CommandMetadata, CommandContext, CollectionParams } from '@types';
+import { formatCollectionParams, waitForTransaction } from '@/providers/ProviderContext';
+import { logger } from '@utils';
 
 export class CreateERC1155Command extends BaseCommand {
   metadata: CommandMetadata = {

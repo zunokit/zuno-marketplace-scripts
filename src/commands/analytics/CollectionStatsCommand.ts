@@ -4,9 +4,9 @@
  */
 
 import { ethers } from 'ethers';
-import { BaseCommand } from '../../core/Command.interface';
-import { CommandMetadata, CommandContext } from '../../types';
-import { validateAddress, logger } from '../../utils';
+import { BaseCommand } from '@core/Command.interface';
+import { CommandMetadata, CommandContext } from '@types';
+import { validateAddress, logger } from '@utils';
 
 interface CollectionStatsParams {
   collectionAddress: string;

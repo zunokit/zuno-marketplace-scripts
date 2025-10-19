@@ -1,35 +1,28 @@
 /**
  * Network Configuration
- * Manages network settings and validates environment variables
+ * Networks are fetched from ABI API and mapped to NetworkName
  */
 
-import * as dotenv from 'dotenv';
-import * as path from 'path';
-import { NetworkConfig, NetworkName } from '../types';
-
-// Load environment variables from root .env file
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+import { NetworkConfig, NetworkName } from '@types';
+import { ABIApiClient, NetworkDto } from '@/providers/abi/abi_api_client';
+import { abiApiConfig, validateABIApiConfig } from '@config/abi_api_config';
+import { logger } from '@utils';
 
 /**
- * Network configuration mapping
+ * Mapping from API network slug to our NetworkName
  */
-export const NETWORK_CONFIG: Record<NetworkName, NetworkConfig> = {
-  local: {
-    rpcUrl: process.env.NEXT_PUBLIC_RPC_URL_LOCAL || 'http://127.0.0.1:8545',
-    hubAddress: process.env.NEXT_PUBLIC_USER_HUB_LOCAL || '',
-    chainId: 31337,
-  },
-  sepolia: {
-    rpcUrl: process.env.NEXT_PUBLIC_RPC_URL_SEPOLIA || '',
-    hubAddress: process.env.NEXT_PUBLIC_USER_HUB_SEPOLIA || '',
-    chainId: 11155111,
-  },
-  mainnet: {
-    rpcUrl: process.env.NEXT_PUBLIC_RPC_URL_MAINNET || '',
-    hubAddress: process.env.NEXT_PUBLIC_USER_HUB_MAINNET || '',
-    chainId: 1,
-  },
+const NETWORK_SLUG_MAP: Record<string, NetworkName> = {
+  anvil: 'local',
+  local: 'local',
+  sepolia: 'sepolia',
+  mainnet: 'mainnet',
+  ethereum: 'mainnet',
 };
+
+/**
+ * Cache for network configurations
+ */
+let networkConfigCache: Record<NetworkName, NetworkConfig> | null = null;
 
 /**
  * Default network for operations
@@ -37,32 +30,62 @@ export const NETWORK_CONFIG: Record<NetworkName, NetworkConfig> = {
 export const DEFAULT_NETWORK: NetworkName = 'local';
 
 /**
- * Validates network configuration
- * @param network - Network name to validate
- * @throws {Error} If configuration is invalid
+ * Fetch and build network configurations from API
+ * @returns Network configuration mapping
  */
-export function validateNetworkConfig(network: NetworkName): NetworkConfig {
-  const config = NETWORK_CONFIG[network];
-
-  if (!config) {
-    throw new Error(`Unknown network: ${network}`);
+async function fetchNetworkConfigs(): Promise<Record<NetworkName, NetworkConfig>> {
+  // Return cache if available
+  if (networkConfigCache) {
+    return networkConfigCache;
   }
 
-  if (!config.hubAddress) {
+  try {
+    // Validate API config
+    validateABIApiConfig(abiApiConfig);
+
+    // Create API client
+    const apiClient = new ABIApiClient(abiApiConfig.baseUrl, abiApiConfig.apiKey);
+
+    logger.debug('Fetching network configurations from API...');
+
+    // Fetch networks
+    const response = await apiClient.fetchNetworks();
+    const networks = response.data.data;
+
+    // Build config map
+    const configMap: Partial<Record<NetworkName, NetworkConfig>> = {};
+
+    networks.forEach((network: NetworkDto) => {
+      const networkName = NETWORK_SLUG_MAP[network.slug];
+      if (networkName) {
+        configMap[networkName] = {
+          rpcUrl: 'http://127.0.0.1:8545', // Default to local RPC, will be set per network
+          chainId: network.chainId,
+        };
+      }
+    });
+
+    // Set default RPC URLs (hardcoded for now, can be overridden)
+    if (configMap.local) {
+      configMap.local.rpcUrl = 'http://127.0.0.1:8545';
+    }
+    if (configMap.sepolia) {
+      configMap.sepolia.rpcUrl = 'https://sepolia.infura.io/v3/YOUR_INFURA_KEY';
+    }
+    if (configMap.mainnet) {
+      configMap.mainnet.rpcUrl = 'https://mainnet.infura.io/v3/YOUR_INFURA_KEY';
+    }
+
+    logger.success(`✓ Loaded ${Object.keys(configMap).length} network configurations`);
+
+    // Cache and return
+    networkConfigCache = configMap as Record<NetworkName, NetworkConfig>;
+    return networkConfigCache;
+  } catch (error) {
     throw new Error(
-      `Hub address not configured for ${network}. ` +
-      `Please set NEXT_PUBLIC_USER_HUB_${network.toUpperCase()} in .env`
+      `Failed to fetch network configurations: ${error instanceof Error ? error.message : 'Unknown error'}`
     );
   }
-
-  if (!config.rpcUrl) {
-    throw new Error(
-      `RPC URL not configured for ${network}. ` +
-      `Please set NEXT_PUBLIC_RPC_URL_${network.toUpperCase()} in .env`
-    );
-  }
-
-  return config;
 }
 
 /**
@@ -70,14 +93,31 @@ export function validateNetworkConfig(network: NetworkName): NetworkConfig {
  * @param network - Network name
  * @returns Network configuration
  */
-export function getNetworkConfig(network: NetworkName = DEFAULT_NETWORK): NetworkConfig {
-  return validateNetworkConfig(network);
+export async function getNetworkConfig(
+  network: NetworkName = DEFAULT_NETWORK
+): Promise<NetworkConfig> {
+  const configs = await fetchNetworkConfigs();
+  const config = configs[network];
+
+  if (!config) {
+    throw new Error(`Network not found: ${network}`);
+  }
+
+  if (config.rpcUrl.includes('YOUR_INFURA_KEY')) {
+    throw new Error(
+      `RPC URL not configured for ${network}. ` +
+        `Please update the RPC URL in src/config/network.config.ts`
+    );
+  }
+
+  return config;
 }
 
 /**
  * Lists all available networks
  * @returns Array of network names
  */
-export function getAvailableNetworks(): NetworkName[] {
-  return Object.keys(NETWORK_CONFIG) as NetworkName[];
+export async function getAvailableNetworks(): Promise<NetworkName[]> {
+  const configs = await fetchNetworkConfigs();
+  return Object.keys(configs) as NetworkName[];
 }

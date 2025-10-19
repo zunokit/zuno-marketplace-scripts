@@ -4,11 +4,11 @@
  */
 
 import { ethers } from 'ethers';
-import { BaseCommand } from '../../core/Command.interface';
-import { CommandMetadata, CommandContext } from '../../types';
-import { waitForTransaction } from '../../providers/ProviderContext';
-import { validateAddress, validatePositiveNumber, logger } from '../../utils';
-import { detectNFTStandard, checkOwnership, checkApproval, approveOperator } from '../../utils/nft.utils';
+import { BaseCommand } from '@core/Command.interface';
+import { CommandMetadata, CommandContext } from '@types';
+import { waitForTransaction } from '@/providers/ProviderContext';
+import { validateAddress, validatePositiveNumber, logger } from '@utils';
+import { detectNFTStandard, checkOwnership, checkApproval, approveOperator } from '@/utils/nft.utils';
 
 interface CreateAuctionParams {
   auctionType: 'english' | 'dutch';

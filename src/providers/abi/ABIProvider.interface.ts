@@ -4,7 +4,7 @@
  */
 
 import { ethers } from 'ethers';
-import { IABIProvider } from '../../types';
+import { IABIProvider, ABIFetchOptions } from '@types';
 
 /**
  * Abstract base class for ABI providers
@@ -14,9 +14,10 @@ export abstract class ABIProviderBase implements IABIProvider {
   /**
    * Get ABI for a contract
    * @param contractName - Name of the contract
+   * @param options - Optional fetch options (version, hash, cache bypass)
    * @returns Contract ABI
    */
-  abstract getABI(contractName: string): Promise<any>;
+  abstract getABI(contractName: string, options?: ABIFetchOptions): Promise<any>;
 
   /**
    * Get ethers Interface for a contract

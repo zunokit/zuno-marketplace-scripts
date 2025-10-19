@@ -1,37 +1,34 @@
 /**
  * ABI Provider Factory
- * Creates appropriate ABI provider based on configuration
+ * Creates ABI provider from configuration
  */
 
 export * from './ABIProvider.interface';
-export * from './ManualABIProvider';
 export * from './APIABIProvider';
+export * from './abi_api_client';
+export * from './abi_cache_manager';
 
-import { IABIProvider, ABIProviderType } from '../../types';
-import { ManualABIProvider } from './ManualABIProvider';
+import { IABIProvider } from '@types';
 import { APIABIProvider } from './APIABIProvider';
+import { abiApiConfig, validateABIApiConfig } from '@config/abi_api_config';
+import { ABIConfigError } from '@/errors/abi_provider_errors';
 
 /**
- * Factory function to create ABI provider
- * @param type - Type of ABI provider to create
- * @param config - Configuration for the provider
+ * Create ABI provider from environment configuration
  * @returns ABI provider instance
+ * @throws {ABIConfigError} if configuration is invalid
  */
-export function createABIProvider(
-  type: ABIProviderType = 'manual',
-  config?: { apiUrl?: string; abiDirectory?: string }
-): IABIProvider {
-  switch (type) {
-    case 'manual':
-      return new ManualABIProvider(config?.abiDirectory);
+export function createABIProvider(): IABIProvider {
+  try {
+    // Validate configuration
+    validateABIApiConfig(abiApiConfig);
 
-    case 'api':
-      if (!config?.apiUrl) {
-        throw new Error('API URL is required for API ABI provider');
-      }
-      return new APIABIProvider(config.apiUrl);
-
-    default:
-      throw new Error(`Unknown ABI provider type: ${type}`);
+    // Create API provider
+    return new APIABIProvider(abiApiConfig);
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new ABIConfigError(error.message);
+    }
+    throw new ABIConfigError('Failed to create ABI provider');
   }
 }

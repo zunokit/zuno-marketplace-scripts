@@ -4,10 +4,10 @@
  */
 
 import { ethers } from 'ethers';
-import { BaseCommand } from '../../core/Command.interface';
-import { CommandMetadata, CommandContext } from '../../types';
-import { waitForTransaction } from '../../providers/ProviderContext';
-import { logger } from '../../utils';
+import { BaseCommand } from '@core/Command.interface';
+import { CommandMetadata, CommandContext } from '@types';
+import { waitForTransaction } from '@/providers/ProviderContext';
+import { logger } from '@utils';
 
 interface BuyNFTParams {
   listingId?: string;

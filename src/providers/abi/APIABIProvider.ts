@@ -1,83 +1,190 @@
 /**
  * API ABI Provider
- * Fetches ABIs from API endpoint (future implementation)
+ * Fetches ABIs from remote API with caching and retry logic
  */
 
 import { ABIProviderBase } from './ABIProvider.interface';
+import { ABIApiClient } from './abi_api_client';
+import { ABICacheManager } from './abi_cache_manager';
+import { ABIApiConfig } from '@config/abi_api_config';
+import { ABIFetchOptions } from '@types';
+import { ABINotFoundError, ABIValidationError } from '@/errors/abi_provider_errors';
+import { validateABI } from '@/utils/abi_validator_utils';
+import { logger } from '@utils';
 
 /**
- * API ABI Provider - fetches ABIs from remote API
- * This will be implemented after the API at E:\zuno-marketplace-abis is completed
+ * API-based ABI Provider
+ * Fetches ABIs from remote API with intelligent caching and retry
  */
 export class APIABIProvider extends ABIProviderBase {
-  private apiBaseUrl: string;
-  private abiCache: Map<string, any> = new Map();
-  private cacheDuration: number; // Cache duration in milliseconds
+  private apiClient: ABIApiClient;
+  private cacheManager: ABICacheManager;
+  private config: ABIApiConfig;
+  private prefetchPromise?: Promise<void>;
 
-  constructor(apiBaseUrl: string, cacheDuration: number = 5 * 60 * 1000) {
+  constructor(config: ABIApiConfig) {
     super();
-    this.apiBaseUrl = apiBaseUrl;
-    this.cacheDuration = cacheDuration;
+    this.config = config;
+    this.apiClient = new ABIApiClient(config.baseUrl, config.apiKey);
+    this.cacheManager = new ABICacheManager(config.cache.ttl);
+
+    // Auto prefetch if enabled
+    if (config.prefetch.enabled && config.prefetch.contracts.length > 0) {
+      this.prefetchPromise = this.prefetchABIs(config.prefetch.contracts);
+    }
   }
 
   /**
-   * Fetches ABI from remote API
-   * @param contractName - Name of the contract
-   * @returns Contract ABI
+   * Get ABI for a contract
+   * @param contractName - Contract name
+   * @param options - Fetch options (version, hash, cache bypass)
+   * @returns ABI JSON
    */
-  async getABI(contractName: string): Promise<any> {
-    // Check cache first
-    const cached = this.abiCache.get(contractName);
-    if (cached && this.isCacheValid(cached.timestamp)) {
-      return cached.abi;
+  async getABI(contractName: string, options?: ABIFetchOptions): Promise<any> {
+    const version = options?.version || this.config.version;
+    const abiHash = options?.abiHash;
+    const bypassCache = options?.bypassCache || false;
+
+    // Wait for prefetch if running
+    if (this.prefetchPromise) {
+      await this.prefetchPromise;
+      this.prefetchPromise = undefined; // Only wait once
     }
 
-    try {
-      // TODO: Implement API call when E:\zuno-marketplace-abis is ready
-      const response = await fetch(`${this.apiBaseUrl}/abis/${contractName}`);
+    // Generate cache key
+    const cacheKey = ABICacheManager.generateKey(contractName, version, abiHash);
 
-      if (!response.ok) {
-        throw new Error(`API request failed: ${response.statusText}`);
+    // Check cache first (unless bypassed)
+    if (!bypassCache && this.config.cache.enabled) {
+      const cached = this.cacheManager.get(cacheKey);
+      if (cached) {
+        return cached;
+      }
+    }
+
+    // Fetch from API with retry
+    const abi = await this.fetchWithRetry(contractName, version, abiHash);
+
+    return abi;
+  }
+
+  /**
+   * Fetch ABI with retry logic
+   * @param contractName - Contract name
+   * @param version - Version
+   * @param abiHash - ABI hash
+   * @param attempt - Current attempt number
+   * @returns ABI JSON
+   */
+  private async fetchWithRetry(
+    contractName: string,
+    version?: string,
+    abiHash?: string,
+    attempt: number = 1
+  ): Promise<any> {
+    try {
+      // Fetch from API
+      const abiItem = abiHash
+        ? await this.apiClient.fetchABIByHash(abiHash)
+        : await this.apiClient.fetchABIByName(contractName, version);
+
+      // Validate ABI structure
+      validateABI(abiItem.abi, contractName);
+
+      // Cache the result
+      if (this.config.cache.enabled) {
+        const cacheKey = ABICacheManager.generateKey(
+          contractName,
+          abiItem.version,
+          abiItem.abiHash
+        );
+        this.cacheManager.set(cacheKey, abiItem.abi, {
+          contractName: abiItem.contractName || abiItem.name,
+          version: abiItem.version,
+          abiHash: abiItem.abiHash,
+        });
       }
 
-      const abi = await response.json();
-      this.validateABI(abi, contractName);
-
-      // Cache with timestamp
-      this.abiCache.set(contractName, {
-        abi,
-        timestamp: Date.now(),
-      });
-
-      return abi;
-    } catch (error) {
-      throw new Error(
-        `Failed to fetch ABI for ${contractName} from API: ${error instanceof Error ? error.message : 'Unknown error'}`
+      logger.success(
+        `✓ Loaded ABI: ${contractName} (v${abiItem.version}, hash: ${abiItem.abiHash.substring(0, 8)}...)`
       );
+
+      return abiItem.abi;
+    } catch (error) {
+      // Don't retry on NOT_FOUND or validation errors
+      if (error instanceof ABINotFoundError || error instanceof ABIValidationError) {
+        throw error;
+      }
+
+      // Retry on API errors
+      if (attempt < this.config.retry.maxRetries) {
+        const backoff = this.config.retry.backoffMs * attempt;
+        logger.warning(
+          `Retry ${attempt}/${this.config.retry.maxRetries} for ${contractName} in ${backoff}ms...`
+        );
+        await this.sleep(backoff);
+        return this.fetchWithRetry(contractName, version, abiHash, attempt + 1);
+      }
+
+      // Max retries exceeded
+      throw error;
     }
   }
 
   /**
-   * Checks if cached ABI is still valid
-   * @param timestamp - Cache timestamp
-   * @returns True if cache is valid
+   * Prefetch multiple ABIs for performance
+   * @param contractNames - Array of contract names to prefetch
    */
-  private isCacheValid(timestamp: number): boolean {
-    return Date.now() - timestamp < this.cacheDuration;
+  async prefetchABIs(contractNames: string[]): Promise<void> {
+    logger.info(`Prefetching ${contractNames.length} ABIs...`);
+
+    try {
+      const abiItems = await this.apiClient.fetchMultipleABIs(contractNames);
+
+      for (const item of abiItems) {
+        const contractName = item.contractName || item.name;
+        const cacheKey = ABICacheManager.generateKey(
+          contractName,
+          item.version,
+          item.abiHash
+        );
+
+        this.cacheManager.set(cacheKey, item.abi, {
+          contractName,
+          version: item.version,
+          abiHash: item.abiHash,
+        });
+      }
+
+      logger.success(`✓ Prefetched ${abiItems.length}/${contractNames.length} ABIs`);
+    } catch (error) {
+      logger.warning(
+        `Prefetch failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+      // Don't throw - prefetch is optional
+    }
   }
 
   /**
-   * Clears the ABI cache
+   * Clear all cached ABIs
    */
   clearCache(): void {
-    this.abiCache.clear();
+    this.cacheManager.clear();
   }
 
   /**
-   * Sets a new cache duration
-   * @param duration - Duration in milliseconds
+   * Get cache statistics
+   * @returns Cache stats
    */
-  setCacheDuration(duration: number): void {
-    this.cacheDuration = duration;
+  getCacheStats(): { size: number; keys: string[] } {
+    return this.cacheManager.getStats();
+  }
+
+  /**
+   * Sleep for specified milliseconds
+   * @param ms - Milliseconds to sleep
+   */
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }
