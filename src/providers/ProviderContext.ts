@@ -3,12 +3,12 @@
  * Manages blockchain provider, signer, and contract addresses
  */
 
-import { ethers } from 'ethers';
-import { NetworkName, ProviderContext, ContractAddresses } from '@types';
-import { getNetworkConfig } from '@/config/network.config';
-import { ABIApiClient } from './abi/abi_api_client';
-import { abiApiConfig, validateABIApiConfig } from '@config/abi_api_config';
-import { logger } from '@utils';
+import { ethers } from "ethers";
+import { NetworkName, ProviderContext, ContractAddresses } from "@types";
+import { getNetworkConfig } from "@/config/network.config";
+import { ABIApiClient } from "./abi/abiApiClient";
+import { abiApiConfig, validateABIApiConfig } from "@config/abiApiConfig";
+import { logger } from "@utils";
 
 /**
  * Creates provider context for blockchain interactions
@@ -16,7 +16,7 @@ import { logger } from '@utils';
  * @returns Provider context with signer and addresses
  */
 export async function createProviderContext(
-  network: NetworkName = 'local'
+  network: NetworkName = "local"
 ): Promise<ProviderContext> {
   const config = await getNetworkConfig(network);
 
@@ -26,7 +26,7 @@ export async function createProviderContext(
   // Get signer
   const accounts = await provider.listAccounts();
   if (!accounts || accounts.length === 0) {
-    throw new Error('No accounts found. Make sure the network is running.');
+    throw new Error("No accounts found. Make sure the network is running.");
   }
 
   const signer = await provider.getSigner(0);
@@ -57,44 +57,64 @@ export async function createProviderContext(
  * @param network - Network name
  * @returns Contract addresses
  */
-async function getContractAddresses(network: NetworkName): Promise<ContractAddresses> {
+async function getContractAddresses(
+  network: NetworkName
+): Promise<ContractAddresses> {
   try {
+    // Get network config to retrieve network ID
+    const networkConfig = await getNetworkConfig(network);
+
+    if (!networkConfig.id) {
+      throw new Error(`Network ID not found for ${network}`);
+    }
+
     // Validate API config
     validateABIApiConfig(abiApiConfig);
 
     // Create API client
-    const apiClient = new ABIApiClient(abiApiConfig.baseUrl, abiApiConfig.apiKey);
+    const apiClient = new ABIApiClient(
+      abiApiConfig.baseUrl,
+      abiApiConfig.apiKey
+    );
 
-    logger.info(`Fetching contract addresses for ${network} network...`);
+    logger.info(`Fetching contract addresses for ${network} network (${networkConfig.id})...`);
 
-    // Fetch deployed contracts for this network
-    const addressMap = await apiClient.fetchDeployedContracts(network);
+    // Fetch deployed contracts for this network using network ID
+    const addressMap = await apiClient.fetchDeployedContracts(networkConfig.id);
 
     logger.success(`✓ Loaded ${addressMap.size} contract addresses`);
 
     // Map to ContractAddresses structure
     const addresses: ContractAddresses = {
-      erc721Factory: addressMap.get('ERC721CollectionFactory') || '',
-      erc1155Factory: addressMap.get('ERC1155CollectionFactory') || '',
-      erc721Exchange: addressMap.get('ERC721NFTExchange') || '',
-      erc1155Exchange: addressMap.get('ERC1155NFTExchange') || '',
-      englishAuction: addressMap.get('EnglishAuction') || addressMap.get('AuctionFactory') || '',
-      dutchAuction: addressMap.get('DutchAuction') || addressMap.get('AuctionFactory') || '',
-      auctionFactory: addressMap.get('AuctionFactory') || '',
-      feeRegistry: addressMap.get('FeeRegistry') || '',
-      bundleManager: addressMap.get('BundleManager') || '',
-      offerManager: addressMap.get('OfferManager') || '',
-      listingHistoryTracker: addressMap.get('ListingHistoryTracker') || '',
+      erc721Factory: addressMap.get("ERC721CollectionFactory") || "",
+      erc1155Factory: addressMap.get("ERC1155CollectionFactory") || "",
+      erc721Exchange: addressMap.get("ERC721NFTExchange") || "",
+      erc1155Exchange: addressMap.get("ERC1155NFTExchange") || "",
+      englishAuction:
+        addressMap.get("EnglishAuction") ||
+        addressMap.get("AuctionFactory") ||
+        "",
+      dutchAuction:
+        addressMap.get("DutchAuction") ||
+        addressMap.get("AuctionFactory") ||
+        "",
+      auctionFactory: addressMap.get("AuctionFactory") || "",
+      feeRegistry: addressMap.get("FeeRegistry") || "",
+      bundleManager: addressMap.get("BundleManager") || "",
+      offerManager: addressMap.get("OfferManager") || "",
+      listingHistoryTracker: addressMap.get("ListingHistoryTracker") || "",
     };
 
     // Validate critical addresses
     const missingAddresses: string[] = [];
-    if (!addresses.erc721Factory) missingAddresses.push('ERC721CollectionFactory');
-    if (!addresses.erc1155Factory) missingAddresses.push('ERC1155CollectionFactory');
+    if (!addresses.erc721Factory)
+      missingAddresses.push("ERC721CollectionFactory");
+    if (!addresses.erc1155Factory)
+      missingAddresses.push("ERC1155CollectionFactory");
 
     if (missingAddresses.length > 0) {
       logger.warning(
-        `Missing critical contract addresses: ${missingAddresses.join(', ')}`
+        `Missing critical contract addresses: ${missingAddresses.join(", ")}`
       );
       logger.warning(
         `Make sure contracts are registered in the ABI API for network: ${network}`
@@ -104,7 +124,9 @@ async function getContractAddresses(network: NetworkName): Promise<ContractAddre
     return addresses;
   } catch (error) {
     throw new Error(
-      `Failed to fetch contract addresses from API: ${error instanceof Error ? error.message : 'Unknown error'}`
+      `Failed to fetch contract addresses from API: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`
     );
   }
 }
@@ -117,25 +139,27 @@ async function getContractAddresses(network: NetworkName): Promise<ContractAddre
  */
 export function formatCollectionParams(params: any, owner: string): any {
   return {
-    name: params.name || 'Test Collection',
-    symbol: params.symbol || 'TEST',
+    name: params.name || "Test Collection",
+    symbol: params.symbol || "TEST",
     owner: params.owner || owner,
-    description: params.description || 'A test collection',
-    mintPrice: typeof params.mintPrice === 'string'
-      ? ethers.parseEther(params.mintPrice)
-      : params.mintPrice || ethers.parseEther('0.01'),
+    description: params.description || "A test collection",
+    mintPrice:
+      typeof params.mintPrice === "string"
+        ? ethers.parseEther(params.mintPrice)
+        : params.mintPrice || ethers.parseEther("0.01"),
     royaltyFee: params.royaltyFee || 500,
     maxSupply: params.maxSupply || 10000,
     mintLimitPerWallet: params.mintLimitPerWallet || 10,
     mintStartTime: params.mintStartTime || 0,
     allowlistMintPrice: params.allowlistMintPrice
       ? ethers.parseEther(params.allowlistMintPrice.toString())
-      : ethers.parseEther('0.008'),
+      : ethers.parseEther("0.008"),
     publicMintPrice: params.publicMintPrice
       ? ethers.parseEther(params.publicMintPrice.toString())
-      : ethers.parseEther('0.01'),
+      : ethers.parseEther("0.01"),
     allowlistStageDuration: params.allowlistStageDuration || 86400,
-    tokenURI: params.tokenURI || params.baseURI || 'https://api.example.com/metadata/',
+    tokenURI:
+      params.tokenURI || params.baseURI || "https://api.example.com/metadata/",
   };
 }
 
@@ -147,7 +171,7 @@ export function formatCollectionParams(params: any, owner: string): any {
  */
 export async function waitForTransaction(
   tx: ethers.ContractTransactionResponse,
-  description: string = 'Transaction'
+  description: string = "Transaction"
 ): Promise<ethers.ContractTransactionReceipt> {
   console.log(`\n📤 ${description} sent`);
   console.log(`   Hash: ${tx.hash}`);
@@ -156,7 +180,7 @@ export async function waitForTransaction(
   const receipt = await tx.wait();
 
   if (!receipt) {
-    throw new Error('Transaction receipt is null');
+    throw new Error("Transaction receipt is null");
   }
 
   console.log(`✅ ${description} confirmed in block ${receipt.blockNumber}`);

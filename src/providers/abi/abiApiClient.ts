@@ -4,7 +4,7 @@
  */
 
 import { ABIApiResponse, ABIItemDto } from '@types';
-import { ABIApiError, ABINotFoundError } from '@/errors/abi_provider_errors';
+import { ABIApiError, ABINotFoundError } from '@/errors/abiProviderErrors';
 import { logger } from '@utils';
 
 export interface QueryParams {
@@ -261,22 +261,25 @@ export class ABIApiClient {
 
   /**
    * Fetch deployed contracts for a specific network
-   * @param networkSlug - Network slug (anvil, sepolia, mainnet)
-   * @returns Map of contract type to address
+   * @param networkId - Network ID from API (e.g., net_v1_SVhnLQWuf0RE)
+   * @returns Map of contract name to address
    */
-  async fetchDeployedContracts(networkSlug: string): Promise<Map<string, string>> {
+  async fetchDeployedContracts(networkId: string): Promise<Map<string, string>> {
     const response = await this.fetchContracts({
-      networkId: networkSlug,
+      networkId,
       limit: 100,
     });
 
     const addressMap = new Map<string, string>();
 
     response.data.data.forEach((contract) => {
-      if (contract.type) {
-        addressMap.set(contract.type, contract.address);
+      // Use name field instead of type (type is null in API)
+      if (contract.name) {
+        addressMap.set(contract.name, contract.address);
       }
     });
+
+    logger.debug(`Fetched ${addressMap.size} contracts for network ${networkId}`);
 
     return addressMap;
   }

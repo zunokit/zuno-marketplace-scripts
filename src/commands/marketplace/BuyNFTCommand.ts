@@ -35,8 +35,9 @@ export class BuyNFTCommand extends BaseCommand {
       if (!listingId && args?.nftAddress && args?.tokenId) {
         logger.info('Finding listing for NFT...');
 
-        const nftABI = ['function supportsInterface(bytes4) view returns (bool)'];
-        const nftContract = new ethers.Contract(args.nftAddress, nftABI, provider.provider);
+        // Minimal interface to detect NFT standard
+        const nftInterface = new ethers.Interface(['function supportsInterface(bytes4) view returns (bool)']);
+        const nftContract = new ethers.Contract(args.nftAddress, nftInterface, provider.provider);
 
         let isERC721 = false;
         try {
@@ -49,11 +50,10 @@ export class BuyNFTCommand extends BaseCommand {
           ? provider.addresses.erc721Exchange
           : provider.addresses.erc1155Exchange;
 
-        const exchange = new ethers.Contract(
-          exchangeAddress,
-          ['function getListingByNFT(address,uint256) view returns (bytes32)'],
-          provider.provider
-        );
+        // Get exchange ABI from API
+        const exchangeABIName = isERC721 ? 'ERC721NFTExchange' : 'ERC1155NFTExchange';
+        const tempExchangeABI = await context.abiProvider.getABI(exchangeABIName);
+        const exchange = new ethers.Contract(exchangeAddress, tempExchangeABI, provider.provider);
 
         listingId = await exchange.getListingByNFT!(args.nftAddress, args.tokenId);
 
@@ -72,12 +72,8 @@ export class BuyNFTCommand extends BaseCommand {
       // Try to get listing from ERC721 exchange first
       exchangeAddress = provider.addresses.erc721Exchange;
 
-      const exchangeABI = [
-        'function getListing(bytes32) view returns (tuple(address seller,address contractAddress,uint256 tokenId,uint256 amount,uint256 price,address paymentToken,uint256 expirationTime,bool isActive))',
-        'function buyNFT(bytes32) payable',
-        'event NFTSold(bytes32,address,uint256,uint256,uint256)',
-      ];
-
+      // Get ERC721 exchange ABI from API
+      let exchangeABI = await context.abiProvider.getABI('ERC721NFTExchange');
       let exchange = new ethers.Contract(exchangeAddress, exchangeABI, provider.signer);
       let listing: any;
 
@@ -86,6 +82,7 @@ export class BuyNFTCommand extends BaseCommand {
       } catch {
         // Try ERC1155 exchange
         exchangeAddress = provider.addresses.erc1155Exchange;
+        exchangeABI = await context.abiProvider.getABI('ERC1155NFTExchange');
         exchange = new ethers.Contract(exchangeAddress, exchangeABI, provider.signer);
         listing = await exchange.getListing!(listingId);
       }

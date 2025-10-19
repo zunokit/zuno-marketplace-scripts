@@ -4,8 +4,8 @@
  */
 
 import { NetworkConfig, NetworkName } from '@types';
-import { ABIApiClient, NetworkDto } from '@/providers/abi/abi_api_client';
-import { abiApiConfig, validateABIApiConfig } from '@config/abi_api_config';
+import { ABIApiClient, NetworkDto } from '@/providers/abi/abiApiClient';
+import { abiApiConfig, validateABIApiConfig } from '@config/abiApiConfig';
 import { logger } from '@utils';
 
 /**
@@ -59,6 +59,7 @@ async function fetchNetworkConfigs(): Promise<Record<NetworkName, NetworkConfig>
       const networkName = NETWORK_SLUG_MAP[network.slug];
       if (networkName) {
         configMap[networkName] = {
+          id: network.id, // Save network ID for contract fetching
           rpcUrl: 'http://127.0.0.1:8545', // Default to local RPC, will be set per network
           chainId: network.chainId,
         };

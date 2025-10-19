@@ -3,7 +3,7 @@
  * Validates ABI structure and required functions
  */
 
-import { ABIValidationError } from '@/errors/abi_provider_errors';
+import { ABIValidationError } from '@/errors/abiProviderErrors';
 
 /**
  * Validates that an ABI has proper structure

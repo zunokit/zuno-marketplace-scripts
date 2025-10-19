@@ -76,8 +76,8 @@ export class CreateAuctionCommand extends BaseCommand {
       logger.info(`Duration: ${args.duration} days`);
       logger.space();
 
-      // Create NFT contract instance
-      const nftABI = [
+      // Create NFT contract instance with minimal interface
+      const nftInterface = new ethers.Interface([
         'function supportsInterface(bytes4) view returns (bool)',
         'function ownerOf(uint256) view returns (address)',
         'function balanceOf(address,uint256) view returns (uint256)',
@@ -85,8 +85,8 @@ export class CreateAuctionCommand extends BaseCommand {
         'function setApprovalForAll(address,bool)',
         'function approve(address,uint256)',
         'function getApproved(uint256) view returns (address)',
-      ];
-      const nftContract = new ethers.Contract(args.nftAddress, nftABI, provider.signer);
+      ]);
+      const nftContract = new ethers.Contract(args.nftAddress, nftInterface, provider.signer);
 
       // Detect NFT standard
       logger.info('Detecting NFT type...');
@@ -164,11 +164,8 @@ export class CreateAuctionCommand extends BaseCommand {
       // Create auction
       logger.info('Creating auction...');
 
-      const auctionFactoryABI = [
-        'function createEnglishAuction(address,uint256,uint256,uint256,uint256,uint256) returns (bytes32)',
-        'function createDutchAuction(address,uint256,uint256,uint256,uint256,uint256) returns (bytes32)',
-        'event AuctionCreated(bytes32,uint8,address,address,uint256,uint256,uint256)',
-      ];
+      // Get AuctionFactory ABI from API
+      const auctionFactoryABI = await context.abiProvider.getABI('AuctionFactory');
 
       const auctionFactory = new ethers.Contract(auctionFactoryAddress, auctionFactoryABI, provider.signer);
 

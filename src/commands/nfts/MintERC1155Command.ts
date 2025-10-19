@@ -33,19 +33,10 @@ export class MintERC1155Command extends BaseCommand {
       const { provider } = context;
       const recipient = args.recipient || provider.account;
 
-      // Get mint ABI
-      const mintABI = [
-        'function name() view returns (string)',
-        'function symbol() view returns (string)',
-        'function balanceOf(address account, uint256 id) view returns (uint256)',
-        'function mint(address to, uint256 id, uint256 amount) external payable',
-        'function batchMintERC1155(address to, uint256 id, uint256 amount) external payable',
-        'function getMintPrice() external view returns (uint256)',
-        'function getTotalMinted() external view returns (uint256)',
-        'event TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value)',
-      ];
+      // Get ERC1155Collection ABI from API
+      const collectionABI = await context.abiProvider.getABI('ERC1155Collection');
 
-      const collection = new ethers.Contract(args.collectionAddress, mintABI, provider.signer);
+      const collection = new ethers.Contract(args.collectionAddress, collectionABI, provider.signer);
 
       // Display collection info
       await this.displayCollectionInfo(collection, args.collectionAddress);

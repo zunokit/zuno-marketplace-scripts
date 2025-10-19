@@ -3,6 +3,12 @@
  * Manages configuration for fetching ABIs from remote API
  */
 
+import * as dotenv from 'dotenv';
+import * as path from 'path';
+
+// Load environment variables
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+
 export interface ABIApiConfig {
   baseUrl: string;
   apiKey: string;

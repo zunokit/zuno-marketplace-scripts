@@ -12,6 +12,7 @@ import { ethers } from 'ethers';
 export type NetworkName = 'local' | 'sepolia' | 'mainnet';
 
 export interface NetworkConfig {
+  id?: string; // Network ID from API (e.g., net_v1_SVhnLQWuf0RE)
   rpcUrl: string;
   chainId: number;
 }

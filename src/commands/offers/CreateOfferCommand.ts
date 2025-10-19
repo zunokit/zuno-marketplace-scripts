@@ -56,10 +56,8 @@ export class CreateOfferCommand extends BaseCommand {
       // Create offer
       logger.info('Creating offer...');
 
-      const offerManagerABI = [
-        'function createOffer(address,uint256,uint256) payable returns (bytes32)',
-        'event OfferCreated(bytes32,address,address,uint256,uint256,uint256)',
-      ];
+      // Get OfferManager ABI from API
+      const offerManagerABI = await context.abiProvider.getABI('OfferManager');
 
       const offerManager = new ethers.Contract(offerManagerAddress, offerManagerABI, provider.signer);
 

@@ -31,23 +31,10 @@ export class MintERC721Command extends BaseCommand {
       const { provider } = context;
       const recipient = args.recipient || provider.account;
 
-      // Get mint ABI
-      const mintABI = [
-        'function name() view returns (string)',
-        'function symbol() view returns (string)',
-        'function balanceOf(address owner) view returns (uint256)',
-        'function mint(address to) external payable',
-        'function batchMintERC721(address to, uint256 amount) external payable',
-        'function getMintPrice() external view returns (uint256)',
-        'function getMaxSupply() external view returns (uint256)',
-        'function getTotalMinted() external view returns (uint256)',
-        'function getMintLimitPerWallet() external view returns (uint256)',
-        'function getMintedPerWallet(address account) external view returns (uint256)',
-        'function getCurrentStage() external view returns (uint8)',
-        'event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)',
-      ];
+      // Get ERC721Collection ABI from API
+      const collectionABI = await context.abiProvider.getABI('ERC721Collection');
 
-      const collection = new ethers.Contract(args.collectionAddress, mintABI, provider.signer);
+      const collection = new ethers.Contract(args.collectionAddress, collectionABI, provider.signer);
 
       // Display collection info
       await this.displayCollectionInfo(collection, args.collectionAddress);

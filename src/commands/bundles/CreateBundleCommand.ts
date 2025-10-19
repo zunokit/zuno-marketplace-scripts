@@ -77,10 +77,8 @@ export class CreateBundleCommand extends BaseCommand {
       // Create bundle
       logger.info('Creating bundle...');
 
-      const bundleManagerABI = [
-        'function createBundle(address[],uint256[],uint256,uint256) returns (bytes32)',
-        'event BundleCreated(bytes32,address,address[],uint256[],uint256,uint256)',
-      ];
+      // Get BundleManager ABI from API
+      const bundleManagerABI = await context.abiProvider.getABI('BundleManager');
 
       const bundleManager = new ethers.Contract(bundleManagerAddress, bundleManagerABI, provider.signer);
 

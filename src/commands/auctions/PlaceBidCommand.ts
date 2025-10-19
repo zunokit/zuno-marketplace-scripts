@@ -40,13 +40,8 @@ export class PlaceBidCommand extends BaseCommand {
       const englishAuctionAddress = provider.addresses.englishAuction;
       const dutchAuctionAddress = provider.addresses.dutchAuction;
 
-      const auctionABI = [
-        'function getAuction(bytes32) view returns (tuple(address seller,address nftContract,uint256 tokenId,uint256 amount,uint256 startingPrice,uint256 currentBid,address highestBidder,uint256 startTime,uint256 endTime,bool isActive))',
-        'function placeBid(bytes32) payable',
-        'function buyNow(bytes32) payable',
-        'function getCurrentPrice(bytes32) view returns (uint256)',
-        'event BidPlaced(bytes32,address,uint256,uint256,address)',
-      ];
+      // Get English auction ABI from API
+      let auctionABI = await context.abiProvider.getABI('EnglishAuction');
 
       // Try English auction first
       let auctionContract = new ethers.Contract(englishAuctionAddress || '', auctionABI, provider.signer);
@@ -59,7 +54,8 @@ export class PlaceBidCommand extends BaseCommand {
           throw new Error('Not active');
         }
       } catch {
-        // Try Dutch auction
+        // Try Dutch auction - fetch Dutch auction ABI
+        auctionABI = await context.abiProvider.getABI('DutchAuction');
         auctionContract = new ethers.Contract(dutchAuctionAddress || '', auctionABI, provider.signer);
         auctionDetails = await auctionContract.getAuction!(auctionId);
         isEnglish = false;

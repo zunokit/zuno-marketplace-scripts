@@ -12,7 +12,16 @@
       "Bash(npm uninstall:*)",
       "Bash(pnpm remove:*)",
       "Read(//e/zuno-marketplace-abis/src/app/api/networks/**)",
-      "Read(//e/zuno-marketplace-abis/src/shared/dto/**)"
+      "Read(//e/zuno-marketplace-abis/src/shared/dto/**)",
+      "Bash(for file in src/commands/nfts/MintERC721Command.ts src/commands/nfts/MintERC1155Command.ts src/commands/marketplace/ListNFTCommand.ts src/commands/marketplace/BuyNFTCommand.ts)",
+      "Bash(do echo \"=== $file ===\")",
+      "Bash(done)",
+      "Bash([ -f .env ])",
+      "Bash(curl -s -H \"x-api-key: zuno_pAIvsFALnJxgfbpbOGvBNsPKNrgGgSvR\" \"https://zuno-marketplace-abis.vercel.app/api/abis/full?limit=5\")",
+      "Bash(python3 -c \"import json,sys; data=json.load(sys.stdin); print(''''Total ABIs:'''', data[''''data''''][''''pagination''''][''''total'''']); [print(f\"\"- {item[''''contractName'''']}\"\") for item in data[''''data''''][''''data''''][:5]]\")",
+      "Bash(curl -s -H \"x-api-key: zuno_pAIvsFALnJxgfbpbOGvBNsPKNrgGgSvR\" \"https://zuno-marketplace-abis.vercel.app/api/abis/full?limit=100\")",
+      "Bash(python3 -c \"import json,sys; data=json.load(sys.stdin); names=[item[''''contractName''''] for item in data[''''data''''][''''data'''']]; print(''''\\n''''.join(sorted(names)))\")",
+      "Bash(npx tsx test-api.ts)"
     ],
     "deny": [],
     "ask": []
