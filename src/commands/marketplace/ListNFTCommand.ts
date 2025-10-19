@@ -4,11 +4,11 @@
  */
 
 import { ethers } from 'ethers';
-import { BaseCommand } from '../../core/Command.interface';
-import { CommandMetadata, CommandContext } from '../../types';
-import { waitForTransaction } from '../../providers/ProviderContext';
-import { validateAddress, validatePositiveNumber, logger } from '../../utils';
-import { detectNFTStandard, checkOwnership, checkApproval, approveOperator } from '../../utils/nft.utils';
+import { BaseCommand } from '@core/Command.interface';
+import { CommandMetadata, CommandContext } from '@types';
+import { waitForTransaction } from '@/providers/ProviderContext';
+import { validateAddress, validatePositiveNumber, logger } from '@utils';
+import { detectNFTStandard, checkOwnership, checkApproval, approveOperator } from '@/utils/nft.utils';
 
 interface ListNFTParams {
   nftAddress: string;
@@ -52,15 +52,15 @@ export class ListNFTCommand extends BaseCommand {
       logger.info(`Duration: ${args.duration} days`);
       logger.space();
 
-      // Create NFT contract instance
-      const nftABI = [
+      // Create NFT contract instance with minimal interface (works for both ERC721 and ERC1155)
+      const nftInterface = new ethers.Interface([
         'function supportsInterface(bytes4) view returns (bool)',
         'function ownerOf(uint256) view returns (address)',
         'function balanceOf(address,uint256) view returns (uint256)',
         'function isApprovedForAll(address,address) view returns (bool)',
         'function setApprovalForAll(address,bool)',
-      ];
-      const nftContract = new ethers.Contract(nftAddress, nftABI, provider.signer);
+      ]);
+      const nftContract = new ethers.Contract(nftAddress, nftInterface, provider.signer);
 
       // Detect NFT standard
       logger.info('Detecting NFT type...');
@@ -115,11 +115,9 @@ export class ListNFTCommand extends BaseCommand {
       // List the NFT
       logger.info('Listing NFT on marketplace...');
 
-      const exchangeABI = [
-        'function listNFT(address,uint256,uint256,uint256) returns (bytes32)',
-        'function listNFT(address,uint256,uint256,uint256,uint256) returns (bytes32)',
-        'event NFTListed(bytes32,address,uint256,address,uint256,uint256,address,uint256)',
-      ];
+      // Get exchange ABI from API based on standard
+      const exchangeABIName = standard === 'ERC721' ? 'ERC721NFTExchange' : 'ERC1155NFTExchange';
+      const exchangeABI = await context.abiProvider.getABI(exchangeABIName);
 
       const exchange = new ethers.Contract(exchangeAddress, exchangeABI, provider.signer);
 

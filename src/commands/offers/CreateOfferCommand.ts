@@ -4,10 +4,10 @@
  */
 
 import { ethers } from 'ethers';
-import { BaseCommand } from '../../core/Command.interface';
-import { CommandMetadata, CommandContext } from '../../types';
-import { waitForTransaction } from '../../providers/ProviderContext';
-import { validateAddress, validatePositiveNumber, logger } from '../../utils';
+import { BaseCommand } from '@core/Command.interface';
+import { CommandMetadata, CommandContext } from '@types';
+import { waitForTransaction } from '@/providers/ProviderContext';
+import { validateAddress, validatePositiveNumber, logger } from '@utils';
 
 interface CreateOfferParams {
   nftAddress: string;
@@ -56,10 +56,8 @@ export class CreateOfferCommand extends BaseCommand {
       // Create offer
       logger.info('Creating offer...');
 
-      const offerManagerABI = [
-        'function createOffer(address,uint256,uint256) payable returns (bytes32)',
-        'event OfferCreated(bytes32,address,address,uint256,uint256,uint256)',
-      ];
+      // Get OfferManager ABI from API
+      const offerManagerABI = await context.abiProvider.getABI('OfferManager');
 
       const offerManager = new ethers.Contract(offerManagerAddress, offerManagerABI, provider.signer);
 

@@ -3,10 +3,11 @@
  */
 
 import { ethers } from 'ethers';
-import { BaseCommand } from '../../core/Command.interface';
-import { CommandMetadata, CommandContext, MintParams } from '../../types';
-import { waitForTransaction } from '../../providers/ProviderContext';
-import { validateAddress, validatePositiveNumber, logger } from '../../utils';
+import { BaseCommand } from '@core/Command.interface';
+import { CommandMetadata, CommandContext, MintParams } from '@types';
+import { waitForTransaction } from '@/providers/ProviderContext';
+import { validateAddress, validatePositiveNumber, logger } from '@utils';
+import { ERC721_COLLECTION_ABI } from '@/shared/abis/collectionAbis';
 
 export class MintERC721Command extends BaseCommand {
   metadata: CommandMetadata = {
@@ -31,23 +32,12 @@ export class MintERC721Command extends BaseCommand {
       const { provider } = context;
       const recipient = args.recipient || provider.account;
 
-      // Get mint ABI
-      const mintABI = [
-        'function name() view returns (string)',
-        'function symbol() view returns (string)',
-        'function balanceOf(address owner) view returns (uint256)',
-        'function mint(address to) external payable',
-        'function batchMintERC721(address to, uint256 amount) external payable',
-        'function getMintPrice() external view returns (uint256)',
-        'function getMaxSupply() external view returns (uint256)',
-        'function getTotalMinted() external view returns (uint256)',
-        'function getMintLimitPerWallet() external view returns (uint256)',
-        'function getMintedPerWallet(address account) external view returns (uint256)',
-        'function getCurrentStage() external view returns (uint8)',
-        'event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)',
-      ];
-
-      const collection = new ethers.Contract(args.collectionAddress, mintABI, provider.signer);
+      // Use minimal ERC721 Collection ABI (not available in API - deployed dynamically)
+      const collection = new ethers.Contract(
+        args.collectionAddress,
+        ERC721_COLLECTION_ABI,
+        provider.signer
+      );
 
       // Display collection info
       await this.displayCollectionInfo(collection, args.collectionAddress);

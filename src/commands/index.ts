@@ -12,4 +12,4 @@ export * from './offers';
 export * from './analytics';
 
 // Re-export command registry for convenience
-export { commandRegistry } from '../core/CommandRegistry';
+export { commandRegistry } from '@core/CommandRegistry';

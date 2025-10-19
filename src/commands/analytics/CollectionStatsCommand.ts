@@ -4,9 +4,9 @@
  */
 
 import { ethers } from 'ethers';
-import { BaseCommand } from '../../core/Command.interface';
-import { CommandMetadata, CommandContext } from '../../types';
-import { validateAddress, logger } from '../../utils';
+import { BaseCommand } from '@core/Command.interface';
+import { CommandMetadata, CommandContext } from '@types';
+import { validateAddress, logger } from '@utils';
 
 interface CollectionStatsParams {
   collectionAddress: string;
@@ -36,8 +36,8 @@ export class CollectionStatsCommand extends BaseCommand {
       logger.info(`Collection: ${args.collectionAddress}`);
       logger.space();
 
-      // Create collection contract instance
-      const collectionABI = [
+      // Create collection contract instance - use generic interface (works for both ERC721 and ERC1155)
+      const collectionInterface = new ethers.Interface([
         'function name() view returns (string)',
         'function symbol() view returns (string)',
         'function totalSupply() view returns (uint256)',
@@ -46,9 +46,9 @@ export class CollectionStatsCommand extends BaseCommand {
         'function getMaxSupply() view returns (uint256)',
         'function getMintPrice() view returns (uint256)',
         'function balanceOf(address) view returns (uint256)',
-      ];
+      ]);
 
-      const collection = new ethers.Contract(args.collectionAddress, collectionABI, provider.provider);
+      const collection = new ethers.Contract(args.collectionAddress, collectionInterface, provider.provider);
 
       // Fetch basic info
       logger.subsection('Collection Info');

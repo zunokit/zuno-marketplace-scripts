@@ -14,6 +14,7 @@ import {
   promptMainMenu,
   promptCategoryCommands,
   promptNetwork,
+  promptAccountSelection,
   promptCommandArgs,
   promptContinue,
 } from '@cli/prompts';
@@ -54,12 +55,17 @@ class CLI {
 
     this.network = selectedNetwork;
 
-    // Create provider context
-    logger.info('Connecting to network...');
-    const provider = await createProviderContext(this.network);
+    // Prompt for account selection
+    logger.info('Loading accounts...');
+    const selectedAccountIndex = await promptAccountSelection(this.network);
 
-    // Create ABI provider (currently using manual, will switch to API later)
-    const abiProvider = createABIProvider('manual');
+    // Create ABI provider first (needed for fetching contract addresses)
+    logger.info('Initializing ABI provider...');
+    const abiProvider = createABIProvider();
+
+    // Create provider context with selected account
+    logger.info('Connecting to network...');
+    const provider = await createProviderContext(this.network, selectedAccountIndex ?? 0);
 
     this.context = {
       provider,

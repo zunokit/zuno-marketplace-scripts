@@ -3,21 +3,24 @@
  * Manages blockchain provider, signer, and contract addresses
  */
 
-import { ethers } from 'ethers';
-import * as fs from 'fs';
-import * as path from 'path';
-import { NetworkName, ProviderContext, ContractAddresses } from '../types';
-import { getNetworkConfig } from '../config/network.config';
+import { ethers } from "ethers";
+import { NetworkName, ProviderContext, ContractAddresses } from "@types";
+import { getNetworkConfig } from "@/config/network.config";
+import { ABIApiClient } from "./abi/abiApiClient";
+import { abiApiConfig, validateABIApiConfig } from "@config/abiApiConfig";
+import { logger } from "@utils";
 
 /**
  * Creates provider context for blockchain interactions
  * @param network - Network to connect to
+ * @param accountIndex - Index of account to use (default: 0)
  * @returns Provider context with signer and addresses
  */
 export async function createProviderContext(
-  network: NetworkName = 'local'
+  network: NetworkName = "local",
+  accountIndex: number = 0
 ): Promise<ProviderContext> {
-  const config = getNetworkConfig(network);
+  const config = await getNetworkConfig(network);
 
   // Create provider
   const provider = new ethers.JsonRpcProvider(config.rpcUrl);
@@ -25,21 +28,28 @@ export async function createProviderContext(
   // Get signer
   const accounts = await provider.listAccounts();
   if (!accounts || accounts.length === 0) {
-    throw new Error('No accounts found. Make sure the network is running.');
+    throw new Error("No accounts found. Make sure the network is running.");
   }
 
-  const signer = await provider.getSigner(0);
+  if (accountIndex >= accounts.length) {
+    throw new Error(
+      `Account index ${accountIndex} out of bounds. Available accounts: ${accounts.length}`
+    );
+  }
+
+  const signer = await provider.getSigner(accountIndex);
   const account = await signer.getAddress();
 
-  // Get contract addresses
-  const addresses = await getContractAddresses(config.hubAddress);
+  // Get contract addresses from API
+  const addresses = await getContractAddresses(network);
 
   // Log connection info
-  console.log(`\n📡 Connected to ${network} network`);
-  console.log(`👤 Account: ${account}`);
+  logger.section(`Connected to ${network} network`);
+  logger.info(`Account: ${account}`);
 
   const balance = await provider.getBalance(account);
-  console.log(`💰 Balance: ${ethers.formatEther(balance)} ETH\n`);
+  logger.info(`Balance: ${ethers.formatEther(balance)} ETH`);
+  logger.space();
 
   return {
     provider,
@@ -51,42 +61,123 @@ export async function createProviderContext(
 }
 
 /**
- * Gets contract addresses from deployment file
- * @param hubAddress - MarketplaceHub address
+ * Account information with balance
+ */
+export interface AccountInfo {
+  index: number;
+  address: string;
+  balance: string;
+}
+
+/**
+ * Gets available accounts with balances for a network
+ * @param network - Network to connect to
+ * @returns Array of account information
+ */
+export async function getAvailableAccounts(
+  network: NetworkName = "local"
+): Promise<AccountInfo[]> {
+  const config = await getNetworkConfig(network);
+  const provider = new ethers.JsonRpcProvider(config.rpcUrl);
+
+  const accounts = await provider.listAccounts();
+  if (!accounts || accounts.length === 0) {
+    throw new Error("No accounts found. Make sure the network is running.");
+  }
+
+  // Get balance for each account
+  const accountsInfo: AccountInfo[] = [];
+  for (let i = 0; i < accounts.length; i++) {
+    const account = accounts[i];
+    if (!account) continue;
+
+    const address = account.address;
+    const balance = await provider.getBalance(address);
+    accountsInfo.push({
+      index: i,
+      address,
+      balance: ethers.formatEther(balance),
+    });
+  }
+
+  return accountsInfo;
+}
+
+/**
+ * Gets contract addresses from ABI API
+ * @param network - Network name
  * @returns Contract addresses
  */
-async function getContractAddresses(_hubAddress: string): Promise<ContractAddresses> {
+async function getContractAddresses(
+  network: NetworkName
+): Promise<ContractAddresses> {
   try {
-    const deploymentPath = path.resolve(
-      __dirname,
-      '../../../zuno-marketplace-contracts/broadcast/DeployAll.s.sol/31337/run-latest.json'
+    // Get network config to retrieve network ID
+    const networkConfig = await getNetworkConfig(network);
+
+    if (!networkConfig.id) {
+      throw new Error(`Network ID not found for ${network}`);
+    }
+
+    // Validate API config
+    validateABIApiConfig(abiApiConfig);
+
+    // Create API client
+    const apiClient = new ABIApiClient(
+      abiApiConfig.baseUrl,
+      abiApiConfig.apiKey
     );
 
-    const deployment = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'));
+    logger.info(`Fetching contract addresses for ${network} network (${networkConfig.id})...`);
 
-    const contracts: Record<string, string> = {};
-    deployment.transactions.forEach((tx: any) => {
-      if (tx.contractName && tx.contractAddress) {
-        contracts[tx.contractName] = tx.contractAddress;
-      }
-    });
+    // Fetch deployed contracts for this network using network ID
+    const addressMap = await apiClient.fetchDeployedContracts(networkConfig.id);
 
-    return {
-      erc721Factory: contracts.ERC721CollectionFactory || '',
-      erc1155Factory: contracts.ERC1155CollectionFactory || '',
-      erc721Exchange: contracts.ERC721NFTExchange || '',
-      erc1155Exchange: contracts.ERC1155NFTExchange || '',
-      englishAuction: contracts.EnglishAuction || contracts.AuctionFactory || '',
-      dutchAuction: contracts.DutchAuction || contracts.AuctionFactory || '',
-      auctionFactory: contracts.AuctionFactory || '',
-      feeRegistry: contracts.FeeRegistry || '',
-      bundleManager: contracts.BundleManager || '',
-      offerManager: contracts.OfferManager || '',
-      listingHistoryTracker: contracts.ListingHistoryTracker || '',
+    logger.success(`✓ Loaded ${addressMap.size} contract addresses`);
+
+    // Map to ContractAddresses structure
+    const addresses: ContractAddresses = {
+      erc721Factory: addressMap.get("ERC721CollectionFactory") || "",
+      erc1155Factory: addressMap.get("ERC1155CollectionFactory") || "",
+      erc721Exchange: addressMap.get("ERC721NFTExchange") || "",
+      erc1155Exchange: addressMap.get("ERC1155NFTExchange") || "",
+      englishAuction:
+        addressMap.get("EnglishAuction") ||
+        addressMap.get("AuctionFactory") ||
+        "",
+      dutchAuction:
+        addressMap.get("DutchAuction") ||
+        addressMap.get("AuctionFactory") ||
+        "",
+      auctionFactory: addressMap.get("AuctionFactory") || "",
+      feeRegistry: addressMap.get("FeeRegistry") || "",
+      bundleManager: addressMap.get("BundleManager") || "",
+      offerManager: addressMap.get("OfferManager") || "",
+      listingHistoryTracker: addressMap.get("ListingHistoryTracker") || "",
     };
+
+    // Validate critical addresses
+    const missingAddresses: string[] = [];
+    if (!addresses.erc721Factory)
+      missingAddresses.push("ERC721CollectionFactory");
+    if (!addresses.erc1155Factory)
+      missingAddresses.push("ERC1155CollectionFactory");
+
+    if (missingAddresses.length > 0) {
+      logger.warning(
+        `Missing critical contract addresses: ${missingAddresses.join(", ")}`
+      );
+      logger.warning(
+        `Make sure contracts are registered in the ABI API for network: ${network}`
+      );
+    }
+
+    return addresses;
   } catch (error) {
     throw new Error(
-      `Could not read contract addresses from deployment file: ${error instanceof Error ? error.message : 'Unknown error'}`
+      `Failed to fetch contract addresses from API: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`
     );
   }
 }
@@ -99,25 +190,27 @@ async function getContractAddresses(_hubAddress: string): Promise<ContractAddres
  */
 export function formatCollectionParams(params: any, owner: string): any {
   return {
-    name: params.name || 'Test Collection',
-    symbol: params.symbol || 'TEST',
+    name: params.name || "Test Collection",
+    symbol: params.symbol || "TEST",
     owner: params.owner || owner,
-    description: params.description || 'A test collection',
-    mintPrice: typeof params.mintPrice === 'string'
-      ? ethers.parseEther(params.mintPrice)
-      : params.mintPrice || ethers.parseEther('0.01'),
+    description: params.description || "A test collection",
+    mintPrice:
+      typeof params.mintPrice === "string"
+        ? ethers.parseEther(params.mintPrice)
+        : params.mintPrice || ethers.parseEther("0.01"),
     royaltyFee: params.royaltyFee || 500,
     maxSupply: params.maxSupply || 10000,
     mintLimitPerWallet: params.mintLimitPerWallet || 10,
     mintStartTime: params.mintStartTime || 0,
     allowlistMintPrice: params.allowlistMintPrice
       ? ethers.parseEther(params.allowlistMintPrice.toString())
-      : ethers.parseEther('0.008'),
+      : ethers.parseEther("0.008"),
     publicMintPrice: params.publicMintPrice
       ? ethers.parseEther(params.publicMintPrice.toString())
-      : ethers.parseEther('0.01'),
+      : ethers.parseEther("0.01"),
     allowlistStageDuration: params.allowlistStageDuration || 86400,
-    tokenURI: params.tokenURI || params.baseURI || 'https://api.example.com/metadata/',
+    tokenURI:
+      params.tokenURI || params.baseURI || "https://api.example.com/metadata/",
   };
 }
 
@@ -129,7 +222,7 @@ export function formatCollectionParams(params: any, owner: string): any {
  */
 export async function waitForTransaction(
   tx: ethers.ContractTransactionResponse,
-  description: string = 'Transaction'
+  description: string = "Transaction"
 ): Promise<ethers.ContractTransactionReceipt> {
   console.log(`\n📤 ${description} sent`);
   console.log(`   Hash: ${tx.hash}`);
@@ -138,7 +231,7 @@ export async function waitForTransaction(
   const receipt = await tx.wait();
 
   if (!receipt) {
-    throw new Error('Transaction receipt is null');
+    throw new Error("Transaction receipt is null");
   }
 
   console.log(`✅ ${description} confirmed in block ${receipt.blockNumber}`);

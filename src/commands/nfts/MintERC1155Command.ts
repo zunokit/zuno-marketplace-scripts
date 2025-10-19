@@ -3,10 +3,11 @@
  */
 
 import { ethers } from 'ethers';
-import { BaseCommand } from '../../core/Command.interface';
-import { CommandMetadata, CommandContext, MintParams } from '../../types';
-import { waitForTransaction } from '../../providers/ProviderContext';
-import { validateAddress, validatePositiveNumber, logger } from '../../utils';
+import { BaseCommand } from '@core/Command.interface';
+import { CommandMetadata, CommandContext, MintParams } from '@types';
+import { waitForTransaction } from '@/providers/ProviderContext';
+import { validateAddress, validatePositiveNumber, logger } from '@utils';
+import { ERC1155_COLLECTION_ABI } from '@/shared/abis/collectionAbis';
 
 export class MintERC1155Command extends BaseCommand {
   metadata: CommandMetadata = {
@@ -26,26 +27,18 @@ export class MintERC1155Command extends BaseCommand {
 
       validateAddress(args.collectionAddress, 'Collection address');
 
-      const tokenId = args.tokenId ?? 1;
       const amount = args.amount || 1;
       validatePositiveNumber(amount, 'Amount');
 
       const { provider } = context;
       const recipient = args.recipient || provider.account;
 
-      // Get mint ABI
-      const mintABI = [
-        'function name() view returns (string)',
-        'function symbol() view returns (string)',
-        'function balanceOf(address account, uint256 id) view returns (uint256)',
-        'function mint(address to, uint256 id, uint256 amount) external payable',
-        'function batchMintERC1155(address to, uint256 id, uint256 amount) external payable',
-        'function getMintPrice() external view returns (uint256)',
-        'function getTotalMinted() external view returns (uint256)',
-        'event TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value)',
-      ];
-
-      const collection = new ethers.Contract(args.collectionAddress, mintABI, provider.signer);
+      // Use minimal ERC1155 Collection ABI (not available in API - deployed dynamically)
+      const collection = new ethers.Contract(
+        args.collectionAddress,
+        ERC1155_COLLECTION_ABI,
+        provider.signer
+      );
 
       // Display collection info
       await this.displayCollectionInfo(collection, args.collectionAddress);
@@ -66,29 +59,62 @@ export class MintERC1155Command extends BaseCommand {
 
       logger.subsection('Minting Parameters');
       logger.info(`Recipient: ${recipient}`);
-      logger.info(`Token ID: ${tokenId}`);
       logger.info(`Amount: ${amount}`);
       logger.space();
 
-      // Try minting
+      // Try minting - ERC1155Collection auto-generates token IDs
       let tx: ethers.ContractTransactionResponse;
 
-      try {
-        logger.info('Attempting batch mint...');
-        tx = await collection.batchMintERC1155!(recipient, tokenId, amount, { value: totalCost });
-      } catch {
-        logger.info('Batch mint not available, trying single mint...');
-        tx = await collection.mint!(recipient, tokenId, amount, { value: totalCost });
+      if (amount > 1) {
+        try {
+          logger.info('Attempting batch mint...');
+          tx = await collection.batchMintERC1155!(recipient, amount, { value: totalCost });
+        } catch (error) {
+          logger.warning('Batch mint failed, trying single mint...');
+          tx = await collection.mint!(recipient, amount, { value: totalCost });
+        }
+      } else {
+        logger.info('Minting single NFT...');
+        tx = await collection.mint!(recipient, amount, { value: totalCost });
       }
 
-      await waitForTransaction(tx, 'Mint ERC1155');
+      const receipt = await waitForTransaction(tx, 'Mint ERC1155');
+
+      // Extract token ID from events
+      let mintedTokenId: bigint | null = null;
+      try {
+        const mintedEvents = receipt.logs.filter(log => {
+          try {
+            const parsed = collection.interface.parseLog({
+              topics: log.topics as string[],
+              data: log.data,
+            });
+            return parsed?.name === 'Minted';
+          } catch {
+            return false;
+          }
+        });
+
+        if (mintedEvents.length > 0) {
+          const parsed = collection.interface.parseLog({
+            topics: mintedEvents[0]!.topics as string[],
+            data: mintedEvents[0]!.data,
+          });
+          mintedTokenId = parsed!.args[1]; // tokenId is second argument in Minted event
+          logger.info(`Minted Token ID: ${mintedTokenId}`);
+        }
+      } catch {
+        // Event parsing failed
+      }
 
       // Check new balance
-      try {
-        const balance = await collection.balanceOf!(recipient, tokenId);
-        logger.success(`New Balance for Token #${tokenId}: ${balance}`);
-      } catch {
-        // Ignore
+      if (mintedTokenId !== null) {
+        try {
+          const balance = await collection.balanceOf!(recipient, mintedTokenId);
+          logger.success(`Balance for Token #${mintedTokenId}: ${balance}`);
+        } catch {
+          // Ignore
+        }
       }
 
       this.logSuccess(`Successfully minted ${amount} token(s)!`);
@@ -128,12 +154,6 @@ export class MintERC1155Command extends BaseCommand {
         name: 'collectionAddress',
         message: 'Collection address:',
         validate: (input: string) => ethers.isAddress(input) || 'Invalid address',
-      },
-      {
-        type: 'number',
-        name: 'tokenId',
-        message: 'Token ID:',
-        default: 1,
       },
       {
         type: 'number',

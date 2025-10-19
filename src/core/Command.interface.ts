@@ -3,7 +3,7 @@
  * Base interface and abstract class for all commands using Command Pattern
  */
 
-import { ICommand, CommandMetadata, CommandContext } from '../types';
+import { ICommand, CommandMetadata, CommandContext } from '@types';
 
 /**
  * Abstract base class for all commands

@@ -3,10 +3,11 @@
  */
 
 import { ethers } from 'ethers';
-import { BaseCommand } from '../../core/Command.interface';
-import { CommandMetadata, CommandContext, CollectionParams } from '../../types';
-import { formatCollectionParams, waitForTransaction } from '../../providers/ProviderContext';
-import { logger } from '../../utils/logger.utils';
+import { BaseCommand } from '@core/Command.interface';
+import { CommandMetadata, CommandContext, CollectionParams } from '@types';
+import { formatCollectionParams, waitForTransaction } from '@/providers/ProviderContext';
+import { logger } from '@utils';
+import { ERC1155_COLLECTION_ABI } from '@/shared/abis/collectionAbis';
 
 export class CreateERC1155Command extends BaseCommand {
   metadata: CommandMetadata = {
@@ -101,16 +102,17 @@ export class CreateERC1155Command extends BaseCommand {
     logger.subsection('Verifying Collection');
 
     try {
-      const collectionABI = await context.abiProvider.getABI('ERC1155Collection');
       const collection = new ethers.Contract(
         collectionAddress,
-        collectionABI,
+        ERC1155_COLLECTION_ABI,
         context.provider.provider
       );
 
-      const name = await collection.name!();
-      const symbol = await collection.symbol!();
-      const owner = await collection.owner!();
+      const [name, symbol, owner] = await Promise.all([
+        collection.name!(),
+        collection.symbol!(),
+        collection.owner!(),
+      ]);
 
       logger.info(`Name: ${name || '⚠️ Empty'}`);
       logger.info(`Symbol: ${symbol || '⚠️ Empty'}`);
