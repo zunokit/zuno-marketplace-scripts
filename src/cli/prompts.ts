@@ -7,6 +7,7 @@ import inquirer from 'inquirer';
 import { commandRegistry } from '@core/CommandRegistry';
 import { NetworkName } from '@types';
 import { getAvailableNetworks } from '@config/network.config';
+import { getAvailableAccounts, AccountInfo } from '@/providers/ProviderContext';
 
 /**
  * Main menu prompt
@@ -128,4 +129,43 @@ export async function promptConfirm(message: string, defaultValue: boolean = fal
  */
 export async function promptContinue(): Promise<boolean> {
   return await promptConfirm('Continue?', true);
+}
+
+/**
+ * Account selection prompt
+ * @param network - Network to get accounts from
+ * @returns Selected account index or null to use default
+ */
+export async function promptAccountSelection(network: NetworkName): Promise<number | null> {
+  const accounts = await getAvailableAccounts(network);
+
+  // If only one account, use it without prompting
+  if (accounts.length === 1) {
+    return 0;
+  }
+
+  // Show max 10 accounts for better UX
+  const displayAccounts = accounts.slice(0, 10);
+
+  const choices = [
+    ...displayAccounts.map((acc: AccountInfo) => ({
+      name: `Account #${acc.index}: ${acc.address} (${parseFloat(acc.balance).toFixed(4)} ETH)`,
+      value: acc.index,
+    })),
+    new inquirer.Separator(),
+    { name: 'Use Default (Account #0)', value: null },
+  ];
+
+  const { accountIndex } = await inquirer.prompt([
+    {
+      type: 'list',
+      name: 'accountIndex',
+      message: 'Select account:',
+      choices,
+      default: 0,
+      loop: false,
+    },
+  ]);
+
+  return accountIndex ?? 0;
 }

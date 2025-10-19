@@ -13,10 +13,12 @@ import { logger } from "@utils";
 /**
  * Creates provider context for blockchain interactions
  * @param network - Network to connect to
+ * @param accountIndex - Index of account to use (default: 0)
  * @returns Provider context with signer and addresses
  */
 export async function createProviderContext(
-  network: NetworkName = "local"
+  network: NetworkName = "local",
+  accountIndex: number = 0
 ): Promise<ProviderContext> {
   const config = await getNetworkConfig(network);
 
@@ -29,7 +31,13 @@ export async function createProviderContext(
     throw new Error("No accounts found. Make sure the network is running.");
   }
 
-  const signer = await provider.getSigner(0);
+  if (accountIndex >= accounts.length) {
+    throw new Error(
+      `Account index ${accountIndex} out of bounds. Available accounts: ${accounts.length}`
+    );
+  }
+
+  const signer = await provider.getSigner(accountIndex);
   const account = await signer.getAddress();
 
   // Get contract addresses from API
@@ -50,6 +58,49 @@ export async function createProviderContext(
     config,
     addresses,
   };
+}
+
+/**
+ * Account information with balance
+ */
+export interface AccountInfo {
+  index: number;
+  address: string;
+  balance: string;
+}
+
+/**
+ * Gets available accounts with balances for a network
+ * @param network - Network to connect to
+ * @returns Array of account information
+ */
+export async function getAvailableAccounts(
+  network: NetworkName = "local"
+): Promise<AccountInfo[]> {
+  const config = await getNetworkConfig(network);
+  const provider = new ethers.JsonRpcProvider(config.rpcUrl);
+
+  const accounts = await provider.listAccounts();
+  if (!accounts || accounts.length === 0) {
+    throw new Error("No accounts found. Make sure the network is running.");
+  }
+
+  // Get balance for each account
+  const accountsInfo: AccountInfo[] = [];
+  for (let i = 0; i < accounts.length; i++) {
+    const account = accounts[i];
+    if (!account) continue;
+
+    const address = account.address;
+    const balance = await provider.getBalance(address);
+    accountsInfo.push({
+      index: i,
+      address,
+      balance: ethers.formatEther(balance),
+    });
+  }
+
+  return accountsInfo;
 }
 
 /**

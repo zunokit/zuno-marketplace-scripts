@@ -30,7 +30,11 @@
       "Bash(curl -s -H \"x-api-key: zuno_pAIvsFALnJxgfbpbOGvBNsPKNrgGgSvR\" \"https://zuno-marketplace-abis.vercel.app/api/networks\")",
       "Bash(python3 -c \"import json,sys; data=json.load(sys.stdin); print(json.dumps(data, indent=2))\")",
       "Bash(curl -s -H \"x-api-key: zuno_pAIvsFALnJxgfbpbOGvBNsPKNrgGgSvR\" \"https://zuno-marketplace-abis.vercel.app/api/abis/full?contractName=NonExistentContract12345&limit=1\")",
-      "Read(//e/zuno-marketplace-contracts/**)"
+      "Read(//e/zuno-marketplace-contracts/**)",
+      "Bash(curl -s -H \"x-api-key: zuno_pAIvsFALnJxgfbpbOGvBNsPKNrgGgSvR\" \"http://localhost:3000/api/abis/full?contractName=ERC1155NFTExchange&limit=1\")",
+      "Bash(python3 -c \"import json,sys; data=json.load(sys.stdin); abi=data[''''data''''][''''data''''][0][''''abi'''']; methods=[item[''''name''''] for item in abi if item[''''type'''']==''''function'''']; print(''''\\n''''.join(sorted(methods)))\")",
+      "Bash(curl -s -H \"x-api-key: zuno_pAIvsFALnJxgfbpbOGvBNsPKNrgGgSvR\" \"http://localhost:3000/api/abis/full?contractName=ERC721NFTExchange&limit=1\")",
+      "Bash(python3 -c \"import json,sys; data=json.load(sys.stdin); abi=data[''''data''''][''''data''''][0][''''abi'''']; methods=[item for item in abi if item[''''type'''']==''''function'''' and item[''''name''''] in [''''getListingsByCollection'''', ''''s_listings'''', ''''getGeneratedListingId'''']]; print(json.dumps(methods, indent=2))\")"
     ],
     "deny": [],
     "ask": []
