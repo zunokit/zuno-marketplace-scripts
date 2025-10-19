@@ -74,8 +74,9 @@ export const ERC1155_COLLECTION_ABI = [
   'function getCurrentStage() view returns (uint8)',
 
   // Minting functions
-  'function mint(address to, uint256 tokenId, uint256 amount) payable',
-  'function batchMintERC1155(address to, uint256[] memory tokenIds, uint256[] memory amounts) payable',
+  // ERC1155Collection mints auto-increment tokenIds, only takes amount parameter
+  'function mint(address to, uint256 amount) payable',
+  'function batchMintERC1155(address to, uint256 amount) payable',
 
   // Events
   'event TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value)',
