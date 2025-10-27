@@ -250,10 +250,17 @@ export class BuyNFTCommand extends BaseCommand {
       // STEP 6: Execute purchase transaction
       logger.info('Purchasing NFT...');
 
-      // Both ERC721 and ERC1155 support buyNFT(bytes32) for purchasing the full listing
-      // ERC1155 also supports buyNFT(bytes32, uint256) for partial amounts
-      // Since we're buying the full listing, use the single-parameter version for both
-      const tx = await exchange.buyNFT!(listingId, { value: totalPrice });
+      // ERC721: Only has buyNFT(bytes32)
+      // ERC1155: Has both buyNFT(bytes32) and buyNFT(bytes32, uint256)
+      // For ERC1155, we must explicitly specify the signature to avoid ambiguity
+      let tx;
+      if (isERC1155) {
+        // ERC1155: Explicitly use single-parameter overload to buy full listing
+        tx = await exchange['buyNFT(bytes32)']!(listingId, { value: totalPrice });
+      } else {
+        // ERC721: Use standard call (no overload ambiguity)
+        tx = await exchange.buyNFT!(listingId, { value: totalPrice });
+      }
 
       await waitForTransaction(tx, 'Buy NFT');
 
