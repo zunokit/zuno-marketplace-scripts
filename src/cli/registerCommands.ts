@@ -19,6 +19,7 @@ import { CreateAuctionCommand, PlaceBidCommand } from '@commands/auctions';
 import { CreateBundleCommand } from '@commands/bundles';
 import { CreateOfferCommand } from '@commands/offers';
 import { CollectionStatsCommand } from '@commands/analytics';
+import { RunAllCommand } from '@commands/testing';
 
 /**
  * Registers all commands
@@ -52,4 +53,7 @@ export function registerAllCommands(): void {
 
   // Analytics commands
   commandRegistry.register(new CollectionStatsCommand());
+
+  // Testing commands
+  commandRegistry.register(new RunAllCommand());
 }

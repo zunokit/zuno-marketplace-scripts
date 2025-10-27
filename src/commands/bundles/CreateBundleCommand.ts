@@ -9,11 +9,30 @@ import { CommandMetadata, CommandContext } from '@types';
 import { waitForTransaction } from '@/providers/ProviderContext';
 import { validateAddress, logger } from '@utils';
 
+// Token type enum matching contract
+enum TokenType {
+  ERC721 = 0,
+  ERC1155 = 1
+}
+
+// BundleItem struct matching contract
+interface BundleItem {
+  collection: string;
+  tokenId: string | number;
+  amount: number;
+  tokenType: TokenType;
+  isIncluded: boolean;
+}
+
 interface CreateBundleParams {
   nftAddresses: string[]; // comma-separated
   tokenIds: string[]; // comma-separated
+  amounts?: number[]; // for ERC1155, optional
   price: string; // in ETH
   duration: number; // in days
+  discountPercentage?: number; // 0-5000 (0-50%), optional
+  description?: string;
+  imageUrl?: string;
 }
 
 export class CreateBundleCommand extends BaseCommand {
@@ -56,13 +75,59 @@ export class CreateBundleCommand extends BaseCommand {
       const priceInWei = ethers.parseEther(args.price);
       const durationInSeconds = args.duration * 24 * 60 * 60;
 
+      // Detect token types for each NFT
+      logger.info('Detecting NFT types...');
+      const nftInterface = new ethers.Interface([
+        'function supportsInterface(bytes4) view returns (bool)',
+      ]);
+
+      const bundleItems: BundleItem[] = [];
+
+      for (let i = 0; i < nftAddresses.length; i++) {
+        const nftAddress = nftAddresses[i];
+        const tokenId = tokenIds[i];
+
+        if (!nftAddress || !tokenId) {
+          throw new Error(`Missing NFT address or token ID at index ${i}`);
+        }
+
+        const nftContract = new ethers.Contract(nftAddress, nftInterface, provider.provider);
+
+        // Detect if ERC1155 (interface ID: 0xd9b67a26)
+        let tokenType = TokenType.ERC721;
+        try {
+          const isERC1155 = await nftContract.supportsInterface!('0xd9b67a26');
+          tokenType = isERC1155 ? TokenType.ERC1155 : TokenType.ERC721;
+        } catch {
+          // Default to ERC721 if detection fails
+        }
+
+        const amount = tokenType === TokenType.ERC721 ? 1 : (args.amounts?.[i] || 1);
+
+        bundleItems.push({
+          collection: nftAddress,
+          tokenId: tokenId,
+          amount,
+          tokenType,
+          isIncluded: true,
+        });
+
+        logger.info(`  ${i + 1}. ${nftAddress} - Token #${tokenId} (${tokenType === TokenType.ERC721 ? 'ERC721' : 'ERC1155'}) x${amount}`);
+      }
+
+      logger.space();
+
+      // Calculate endTime (timestamp)
+      const endTime = Math.floor(Date.now() / 1000) + durationInSeconds;
+
       logger.subsection('Bundle Details');
-      logger.info(`NFTs in Bundle: ${nftAddresses.length}`);
-      nftAddresses.forEach((addr: string, i: number) => {
-        logger.info(`  ${i + 1}. ${addr} - Token #${tokenIds[i]}`);
-      });
-      logger.info(`Bundle Price: ${args.price} ETH`);
+      logger.info(`NFTs in Bundle: ${bundleItems.length}`);
+      logger.info(`Total Price: ${args.price} ETH`);
+      if (args.discountPercentage) {
+        logger.info(`Discount: ${args.discountPercentage / 100}%`);
+      }
       logger.info(`Duration: ${args.duration} days`);
+      logger.info(`Expires: ${new Date(endTime * 1000).toLocaleString()}`);
       logger.space();
 
       // Get bundle manager address
@@ -82,7 +147,16 @@ export class CreateBundleCommand extends BaseCommand {
 
       const bundleManager = new ethers.Contract(bundleManagerAddress, bundleManagerABI, provider.signer);
 
-      const tx = await bundleManager.createBundle!(nftAddresses, tokenIds, priceInWei, durationInSeconds);
+      // createBundle(BundleItem[], uint256, uint256, address, uint256, string, string)
+      const tx = await bundleManager.createBundle!(
+        bundleItems,                            // BundleItem[] calldata items
+        priceInWei,                            // uint256 totalPrice
+        args.discountPercentage || 0,          // uint256 discountPercentage (0-5000)
+        ethers.ZeroAddress,                    // address paymentToken (0x0 = ETH)
+        endTime,                               // uint256 endTime (timestamp)
+        args.description || 'NFT Bundle',      // string calldata description
+        args.imageUrl || ''                    // string calldata imageUrl
+      );
 
       const receipt = await waitForTransaction(tx, 'Create Bundle');
 

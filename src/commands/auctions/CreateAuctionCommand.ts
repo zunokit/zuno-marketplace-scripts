@@ -15,10 +15,11 @@ interface CreateAuctionParams {
   nftAddress: string;
   tokenId: number | string;
   startingPrice: string; // in ETH
-  endingPrice?: string; // for Dutch auction only
-  reservePrice?: string; // for English auction only
+  endingPrice?: string; // for Dutch auction only (now called reservePrice in contract)
+  reservePrice?: string; // for English/Dutch auction
   duration: number; // in days
   amount?: number; // for ERC1155 only
+  priceDropPerHour?: string; // for Dutch auction only - price decrease per hour
 }
 
 export class CreateAuctionCommand extends BaseCommand {
@@ -47,19 +48,37 @@ export class CreateAuctionCommand extends BaseCommand {
 
       // Parse prices
       const startingPrice = ethers.parseEther(args.startingPrice);
-      const endingPrice = args.endingPrice ? ethers.parseEther(args.endingPrice) : 0n;
-      const reservePrice = args.reservePrice ? ethers.parseEther(args.reservePrice) : 0n;
       const durationInSeconds = args.duration * 24 * 60 * 60;
 
-      // Validate auction-specific parameters
-      if (!isEnglish && !args.endingPrice) {
-        throw new Error('Dutch auction requires ending price');
-      }
-      if (!isEnglish && endingPrice >= startingPrice) {
-        throw new Error('Ending price must be lower than starting price for Dutch auction');
-      }
-      if (isEnglish && reservePrice > 0n && reservePrice < startingPrice) {
-        throw new Error('Reserve price must be higher than starting price');
+      let reservePrice: bigint;
+      let priceDropPerHour: bigint = 0n;
+
+      if (isEnglish) {
+        // English Auction: reservePrice must be >= startingPrice
+        reservePrice = args.reservePrice ? ethers.parseEther(args.reservePrice) : startingPrice;
+        if (reservePrice < startingPrice) {
+          throw new Error('Reserve price must be >= starting price for English auction');
+        }
+      } else {
+        // Dutch Auction: reservePrice is the minimum (ending) price
+        if (!args.endingPrice) {
+          throw new Error('Dutch auction requires ending price (minimum price)');
+        }
+        reservePrice = ethers.parseEther(args.endingPrice);
+
+        if (reservePrice >= startingPrice) {
+          throw new Error('Ending price must be lower than starting price for Dutch auction');
+        }
+
+        // Calculate priceDropPerHour
+        if (args.priceDropPerHour) {
+          priceDropPerHour = ethers.parseEther(args.priceDropPerHour);
+        } else {
+          // Auto-calculate: (startPrice - endPrice) / hours
+          const priceDiff = startingPrice - reservePrice;
+          const hours = BigInt(Math.floor(durationInSeconds / 3600));
+          priceDropPerHour = priceDiff / hours;
+        }
       }
 
       logger.subsection('Auction Details');
@@ -67,11 +86,12 @@ export class CreateAuctionCommand extends BaseCommand {
       logger.info(`NFT Contract: ${args.nftAddress}`);
       logger.info(`Token ID: ${args.tokenId}`);
       logger.info(`Starting Price: ${args.startingPrice} ETH`);
-      if (!isEnglish && args.endingPrice) {
-        logger.info(`Ending Price: ${args.endingPrice} ETH`);
+      if (!isEnglish) {
+        logger.info(`Ending Price: ${ethers.formatEther(reservePrice)} ETH`);
+        logger.info(`Price Drop Per Hour: ${ethers.formatEther(priceDropPerHour)} ETH`);
       }
-      if (isEnglish && args.reservePrice) {
-        logger.info(`Reserve Price: ${args.reservePrice} ETH`);
+      if (isEnglish) {
+        logger.info(`Reserve Price: ${ethers.formatEther(reservePrice)} ETH`);
       }
       logger.info(`Duration: ${args.duration} days`);
       logger.space();
@@ -172,22 +192,25 @@ export class CreateAuctionCommand extends BaseCommand {
       let tx: ethers.ContractTransactionResponse;
 
       if (isEnglish) {
+        // createEnglishAuction(address, uint256, uint256, uint256, uint256, uint256)
         tx = await auctionFactory.createEnglishAuction!(
           args.nftAddress,
           args.tokenId,
-          amount,
+          amount,           // ERC721=1, ERC1155=custom amount
           startingPrice,
           reservePrice,
           durationInSeconds
         );
       } else {
+        // createDutchAuction(address, uint256, uint256, uint256, uint256, uint256, uint256)
         tx = await auctionFactory.createDutchAuction!(
           args.nftAddress,
           args.tokenId,
-          amount,
+          amount,            // ERC721=1, ERC1155=custom amount
           startingPrice,
-          endingPrice,
-          durationInSeconds
+          reservePrice,      // This is the minimum (ending) price
+          durationInSeconds,
+          priceDropPerHour   // Price decrease per hour
         );
       }
 
@@ -289,16 +312,23 @@ export class CreateAuctionCommand extends BaseCommand {
       {
         type: 'input',
         name: 'endingPrice',
-        message: 'Ending price (low, in ETH):',
+        message: 'Ending price (minimum price, in ETH):',
         when: (answers: any) => answers.auctionType === 'dutch',
         validate: (input: string) => (!isNaN(Number(input)) && Number(input) > 0) || 'Invalid price',
       },
       {
         type: 'input',
+        name: 'priceDropPerHour',
+        message: 'Price drop per hour (in ETH, leave empty for auto-calculate):',
+        when: (answers: any) => answers.auctionType === 'dutch',
+        default: '',
+      },
+      {
+        type: 'input',
         name: 'reservePrice',
-        message: 'Reserve price (in ETH, 0 for none):',
+        message: 'Reserve price (in ETH, leave empty to use starting price):',
         when: (answers: any) => answers.auctionType === 'english',
-        default: '0',
+        default: '',
       },
       {
         type: 'number',

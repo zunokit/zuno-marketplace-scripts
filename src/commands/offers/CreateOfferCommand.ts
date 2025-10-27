@@ -41,11 +41,15 @@ export class CreateOfferCommand extends BaseCommand {
       const priceInWei = ethers.parseEther(args.offerPrice);
       const durationInSeconds = args.duration * 24 * 60 * 60;
 
+      // Calculate expiration timestamp (not duration)
+      const expiration = Math.floor(Date.now() / 1000) + durationInSeconds;
+
       logger.subsection('Offer Details');
       logger.info(`NFT Contract: ${args.nftAddress}`);
       logger.info(`Token ID: ${args.tokenId}`);
       logger.info(`Offer Price: ${args.offerPrice} ETH`);
       logger.info(`Duration: ${args.duration} days`);
+      logger.info(`Expires: ${new Date(expiration * 1000).toLocaleString()}`);
       logger.space();
 
       // Get offer manager address
@@ -54,17 +58,23 @@ export class CreateOfferCommand extends BaseCommand {
       logger.space();
 
       // Create offer
-      logger.info('Creating offer...');
+      logger.info('Creating NFT offer...');
 
       // Get OfferManager ABI from API
       const offerManagerABI = await context.abiProvider.getABI('OfferManager');
 
       const offerManager = new ethers.Contract(offerManagerAddress, offerManagerABI, provider.signer);
 
-      // Note: Offer requires depositing ETH upfront
-      const tx = await offerManager.createOffer!(args.nftAddress, args.tokenId, durationInSeconds, {
-        value: priceInWei,
-      });
+      // createNFTOffer(address collection, uint256 tokenId, address paymentToken, uint256 amount, uint256 expiration)
+      // Note: This is a payable function, ETH is sent as value
+      const tx = await offerManager.createNFTOffer!(
+        args.nftAddress,        // collection
+        args.tokenId,           // tokenId
+        ethers.ZeroAddress,     // paymentToken (0x0 = ETH)
+        priceInWei,             // amount
+        expiration,             // expiration timestamp
+        { value: priceInWei }   // send ETH as payment
+      );
 
       const receipt = await waitForTransaction(tx, 'Create Offer');
 
