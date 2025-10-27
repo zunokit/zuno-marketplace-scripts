@@ -46,58 +46,42 @@ export class BuyNFTCommand extends BaseCommand {
     aliases: ['buy'],
   };
 
-  /**
-   * Detects if an NFT contract is ERC721 (vs ERC1155)
-   * Uses ERC165 supportsInterface check for ERC721 interface ID (0x80ac58cd)
-   */
-  private async detectNFTType(nftAddress: string, provider: ethers.Provider): Promise<boolean> {
-    const nftInterface = new ethers.Interface(['function supportsInterface(bytes4) view returns (bool)']);
-    const nftContract = new ethers.Contract(nftAddress, nftInterface, provider);
-
-    try {
-      return await nftContract.supportsInterface!('0x80ac58cd');
-    } catch {
-      // Default to ERC721 if supportsInterface not available
-      return true;
-    }
-  }
 
   /**
    * Finds an active listing for a specific NFT (contractAddress + tokenId)
-   * Uses getListingsByCollection to get all listings, then filters for active listing with matching tokenId
-   *
-   * Note: This is O(n) iteration. Contract has s_activeListings[contract][tokenId][seller] for O(1) lookup,
-   * but we don't know the seller address, so we must iterate through all collection listings.
+   * Uses isNFTListed() for efficient lookup with fallback to iteration
    */
   private async findActiveListingByNFT(
     exchange: ethers.Contract,
     nftAddress: string,
     tokenId: string | number
   ): Promise<string | null> {
-    // Get all listing IDs for this NFT collection
-    const listingIds: string[] = await exchange.getListingsByCollection!(nftAddress);
+    // Try using isNFTListed() for efficient lookup
+    try {
+      const [isListed, listingId] = await exchange.isNFTListed!(nftAddress, tokenId);
+      return isListed ? listingId : null;
+    } catch (error) {
+      // Fallback to iteration method (may occur if function call fails or listing not indexed)
+      logger.debug('Using fallback iteration method for listing search');
 
-    // Iterate to find active listing with matching tokenId
-    for (const id of listingIds) {
-      const listing: Listing = await exchange.s_listings!(id);
+      const listingIds: string[] = await exchange.getListingsByCollection!(nftAddress);
 
-      // Check if listing matches our criteria:
-      // 1. Token ID matches
-      // 2. Status is Active (1)
-      // 3. Not expired (current time < listingStart + listingDuration)
-      const isTokenMatch = listing.tokenId.toString() === tokenId.toString();
-      // Convert to number for comparison since contract returns uint8
-      const isActive = Number(listing.status) === ListingStatus.Active;
-      const now = Math.floor(Date.now() / 1000);
-      const expirationTime = Number(listing.listingStart) + Number(listing.listingDuration);
-      const isNotExpired = now < expirationTime;
+      for (const id of listingIds) {
+        const listing: Listing = await exchange.s_listings!(id);
 
-      if (isTokenMatch && isActive && isNotExpired) {
-        return id;
+        const isTokenMatch = listing.tokenId.toString() === tokenId.toString();
+        const isActive = Number(listing.status) === ListingStatus.Active;
+        const now = Math.floor(Date.now() / 1000);
+        const expirationTime = Number(listing.listingStart) + Number(listing.listingDuration);
+        const isNotExpired = now < expirationTime;
+
+        if (isTokenMatch && isActive && isNotExpired) {
+          return id;
+        }
       }
-    }
 
-    return null;
+      return null;
+    }
   }
 
   /**
@@ -172,21 +156,43 @@ export class BuyNFTCommand extends BaseCommand {
         // Normalize address to checksum format (prevents ENS resolution on local network)
         const nftAddressChecksum = ethers.getAddress(args.nftAddress);
 
-        // Detect NFT type (ERC721 vs ERC1155) to know which exchange to query
-        const isERC721 = await this.detectNFTType(nftAddressChecksum, provider.provider);
-        const exchangeAddress = isERC721
-          ? provider.addresses.erc721Exchange
-          : provider.addresses.erc1155Exchange;
+        // Try ERC721 exchange first
+        let foundListingId: string | null = null;
 
-        // Get appropriate exchange contract with full ABI
-        const exchangeABIName = isERC721 ? 'ERC721NFTExchange' : 'ERC1155NFTExchange';
-        const exchangeABI = await context.abiProvider.getABI(exchangeABIName);
-        const exchange = new ethers.Contract(exchangeAddress, exchangeABI, provider.provider);
+        try {
+          const erc721ABI = await context.abiProvider.getABI('ERC721NFTExchange');
+          const erc721Exchange = new ethers.Contract(
+            provider.addresses.erc721Exchange,
+            erc721ABI,
+            provider.provider
+          );
+          foundListingId = await this.findActiveListingByNFT(erc721Exchange, nftAddressChecksum, args.tokenId);
 
-        // Find active listing for this NFT
-        // Note: This iterates through all collection listings (O(n))
-        // because we don't know the seller address for direct s_activeListings lookup (O(1))
-        const foundListingId = await this.findActiveListingByNFT(exchange, nftAddressChecksum, args.tokenId);
+          if (foundListingId) {
+            logger.success('Found ERC721 listing');
+          }
+        } catch (error) {
+          // Continue to ERC1155
+        }
+
+        // If not found in ERC721, try ERC1155
+        if (!foundListingId) {
+          try {
+            const erc1155ABI = await context.abiProvider.getABI('ERC1155NFTExchange');
+            const erc1155Exchange = new ethers.Contract(
+              provider.addresses.erc1155Exchange,
+              erc1155ABI,
+              provider.provider
+            );
+            foundListingId = await this.findActiveListingByNFT(erc1155Exchange, nftAddressChecksum, args.tokenId);
+
+            if (foundListingId) {
+              logger.success('Found ERC1155 listing');
+            }
+          } catch (error) {
+            // Not found in either exchange
+          }
+        }
 
         if (!foundListingId) {
           throw new Error('No active listing found for this NFT');

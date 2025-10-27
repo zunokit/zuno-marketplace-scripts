@@ -8,7 +8,13 @@ import { commandRegistry } from '@core/CommandRegistry';
 // Import all commands
 import { CreateERC721Command, CreateERC1155Command } from '@commands/collections';
 import { MintERC721Command, MintERC1155Command } from '@commands/nfts';
-import { ListNFTCommand, BuyNFTCommand } from '@commands/marketplace';
+import {
+  ListNFTCommand,
+  BuyNFTCommand,
+  CancelListingCommand,
+  ViewListingsCommand,
+  SearchMarketplaceCommand,
+} from '@commands/marketplace';
 import { CreateAuctionCommand, PlaceBidCommand } from '@commands/auctions';
 import { CreateBundleCommand } from '@commands/bundles';
 import { CreateOfferCommand } from '@commands/offers';
@@ -30,6 +36,9 @@ export function registerAllCommands(): void {
   // Marketplace commands
   commandRegistry.register(new ListNFTCommand());
   commandRegistry.register(new BuyNFTCommand());
+  commandRegistry.register(new CancelListingCommand());
+  commandRegistry.register(new ViewListingsCommand());
+  commandRegistry.register(new SearchMarketplaceCommand());
 
   // Auction commands
   commandRegistry.register(new CreateAuctionCommand());

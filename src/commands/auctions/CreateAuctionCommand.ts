@@ -193,23 +193,43 @@ export class CreateAuctionCommand extends BaseCommand {
 
       const receipt = await waitForTransaction(tx, 'Create Auction');
 
-      // Extract auction ID from events
+      // Extract auction ID from events - try multiple possible signatures
+      let auctionId: string | null = null;
+
       try {
-        const auctionEvent = receipt.logs.find(
-          (log) => log.topics[0] === ethers.id('AuctionCreated(bytes32,uint8,address,address,uint256,uint256,uint256)')
-        );
+        // Try different possible event signatures
+        const possibleSignatures = [
+          'AuctionCreated(bytes32,uint8,address,address,uint256,uint256,uint256)',
+          'AuctionCreated(bytes32,address,uint256,uint256,uint256,uint256)',
+          'AuctionCreated(bytes32,uint8,address,uint256,uint256)',
+          'AuctionCreated(bytes32,address,uint256,address,uint256,uint256,uint256)',
+        ];
 
-        if (auctionEvent) {
-          const auctionId = auctionEvent.topics[1];
-          logger.success('Auction Created Successfully!');
-          logger.info(`Auction ID: ${auctionId}`);
-          logger.info(`Type: ${isEnglish ? 'English' : 'Dutch'} Auction`);
+        for (const sig of possibleSignatures) {
+          const eventHash = ethers.id(sig);
+          const auctionEvent = receipt.logs.find((log) => log.topics[0] === eventHash);
 
-          const endTime = new Date(Date.now() + durationInSeconds * 1000);
-          logger.info(`Ends: ${endTime.toLocaleString()}`);
+          if (auctionEvent && auctionEvent.topics.length > 1) {
+            auctionId = auctionEvent.topics[1] || null;
+            logger.success('Auction Created Successfully!');
+            logger.info(`Auction ID: ${auctionId}`);
+            logger.info(`Type: ${isEnglish ? 'English' : 'Dutch'} Auction`);
+
+            const endTime = new Date(Date.now() + durationInSeconds * 1000);
+            logger.info(`Ends: ${endTime.toLocaleString()}`);
+            break;
+          }
         }
-      } catch {
-        // Event parsing failed
+
+        if (!auctionId) {
+          logger.warning('Could not extract auction ID from transaction');
+          logger.info('Transaction was successful but event parsing failed');
+          logger.info(`Transaction hash: ${receipt.hash}`);
+          logger.info('Use: npx tsx get-auction-id.ts <tx-hash> to retrieve auction ID');
+        }
+      } catch (error) {
+        logger.warning('Event parsing failed');
+        logger.info(`Transaction hash: ${receipt.hash}`);
       }
 
       if (isEnglish) {

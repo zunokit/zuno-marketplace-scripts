@@ -143,6 +143,8 @@ export class ListNFTCommand extends BaseCommand {
       const receipt = await waitForTransaction(tx, 'List NFT');
 
       // Extract listing ID from events
+      let listingId: string | null = null;
+
       try {
         const listingEvent = receipt.logs.find(
           (log) =>
@@ -150,13 +152,17 @@ export class ListNFTCommand extends BaseCommand {
             ethers.id('NFTListed(bytes32,address,uint256,address,uint256)')
         );
 
-        if (listingEvent) {
-          const listingId = listingEvent.topics[1];
+        if (listingEvent && listingEvent.topics.length > 1) {
+          listingId = listingEvent.topics[1] || null;
           logger.success('NFT Listed Successfully!');
           logger.info(`Listing ID: ${listingId}`);
+        } else {
+          logger.warning('Could not extract listing ID from transaction');
+          logger.info(`Transaction hash: ${receipt.hash}`);
         }
-      } catch {
-        // Event parsing failed
+      } catch (error) {
+        logger.warning('Event parsing failed');
+        logger.info(`Transaction hash: ${receipt.hash}`);
       }
 
       // Calculate expiration

@@ -87,21 +87,37 @@ export class CreateBundleCommand extends BaseCommand {
       const receipt = await waitForTransaction(tx, 'Create Bundle');
 
       // Extract bundle ID from events
+      let bundleId: string | null = null;
+
       try {
-        const bundleEvent = receipt.logs.find(
-          (log) => log.topics[0] === ethers.id('BundleCreated(bytes32,address,address[],uint256[],uint256,uint256)')
-        );
+        const possibleSignatures = [
+          'BundleCreated(bytes32,address,address[],uint256[],uint256,uint256)',
+          'BundleCreated(bytes32,address,uint256,uint256)',
+          'BundleCreated(bytes32,address,address[],uint256[])',
+        ];
 
-        if (bundleEvent) {
-          const bundleId = bundleEvent.topics[1];
-          logger.success('Bundle Created Successfully!');
-          logger.info(`Bundle ID: ${bundleId}`);
+        for (const sig of possibleSignatures) {
+          const eventHash = ethers.id(sig);
+          const bundleEvent = receipt.logs.find((log) => log.topics[0] === eventHash);
 
-          const expirationDate = new Date(Date.now() + durationInSeconds * 1000);
-          logger.info(`Expires: ${expirationDate.toLocaleString()}`);
+          if (bundleEvent && bundleEvent.topics.length > 1) {
+            bundleId = bundleEvent.topics[1] || null;
+            logger.success('Bundle Created Successfully!');
+            logger.info(`Bundle ID: ${bundleId}`);
+
+            const expirationDate = new Date(Date.now() + durationInSeconds * 1000);
+            logger.info(`Expires: ${expirationDate.toLocaleString()}`);
+            break;
+          }
         }
-      } catch {
-        // Event parsing failed
+
+        if (!bundleId) {
+          logger.warning('Could not extract bundle ID from transaction');
+          logger.info(`Transaction hash: ${receipt.hash}`);
+        }
+      } catch (error) {
+        logger.warning('Event parsing failed');
+        logger.info(`Transaction hash: ${receipt.hash}`);
       }
 
       this.logSuccess('Bundle created successfully!');

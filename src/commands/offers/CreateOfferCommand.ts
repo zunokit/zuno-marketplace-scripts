@@ -69,21 +69,37 @@ export class CreateOfferCommand extends BaseCommand {
       const receipt = await waitForTransaction(tx, 'Create Offer');
 
       // Extract offer ID from events
+      let offerId: string | null = null;
+
       try {
-        const offerEvent = receipt.logs.find(
-          (log) => log.topics[0] === ethers.id('OfferCreated(bytes32,address,address,uint256,uint256,uint256)')
-        );
+        const possibleSignatures = [
+          'OfferCreated(bytes32,address,address,uint256,uint256,uint256)',
+          'OfferCreated(bytes32,address,uint256,address,uint256,uint256)',
+          'OfferCreated(bytes32,address,uint256,uint256,uint256)',
+        ];
 
-        if (offerEvent) {
-          const offerId = offerEvent.topics[1];
-          logger.success('Offer Created Successfully!');
-          logger.info(`Offer ID: ${offerId}`);
+        for (const sig of possibleSignatures) {
+          const eventHash = ethers.id(sig);
+          const offerEvent = receipt.logs.find((log) => log.topics[0] === eventHash);
 
-          const expirationDate = new Date(Date.now() + durationInSeconds * 1000);
-          logger.info(`Expires: ${expirationDate.toLocaleString()}`);
+          if (offerEvent && offerEvent.topics.length > 1) {
+            offerId = offerEvent.topics[1] || null;
+            logger.success('Offer Created Successfully!');
+            logger.info(`Offer ID: ${offerId}`);
+
+            const expirationDate = new Date(Date.now() + durationInSeconds * 1000);
+            logger.info(`Expires: ${expirationDate.toLocaleString()}`);
+            break;
+          }
         }
-      } catch {
-        // Event parsing failed
+
+        if (!offerId) {
+          logger.warning('Could not extract offer ID from transaction');
+          logger.info(`Transaction hash: ${receipt.hash}`);
+        }
+      } catch (error) {
+        logger.warning('Event parsing failed');
+        logger.info(`Transaction hash: ${receipt.hash}`);
       }
 
       logger.space();
