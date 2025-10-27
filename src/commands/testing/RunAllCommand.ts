@@ -105,8 +105,18 @@ export class RunAllCommand extends BaseCommand {
 
       logger.space();
 
-      // Phase 4: Auction Operations
-      logger.section('🔨 PHASE 4: AUCTION OPERATIONS');
+      // Phase 4: Bundle Operations (MOVED UP - before auctions to avoid escrow conflicts)
+      logger.section('📦 PHASE 4: BUNDLE OPERATIONS');
+      if (this.state.erc721BatchTokenIds && this.state.erc721BatchTokenIds.length >= 3) {
+        results.push(await this.runCreateBundle(context));
+        // Note: List Bundle and Buy Bundle require bundle marketplace integration
+      } else {
+        logger.warning('Skipping bundle operations - insufficient tokens');
+      }
+      logger.space();
+
+      // Phase 5: Auction Operations (MOVED DOWN - after bundle)
+      logger.section('🔨 PHASE 5: AUCTION OPERATIONS');
       if (this.state.erc721BatchTokenIds && this.state.erc721BatchTokenIds.length > 2) {
         // Test English Auction
         results.push(await this.runCreateAuction(context, 'english'));
@@ -118,16 +128,6 @@ export class RunAllCommand extends BaseCommand {
         }
       } else {
         logger.warning('Skipping auction operations - insufficient batch tokens');
-      }
-      logger.space();
-
-      // Phase 5: Bundle Operations
-      logger.section('📦 PHASE 5: BUNDLE OPERATIONS');
-      if (this.state.erc721BatchTokenIds && this.state.erc721BatchTokenIds.length >= 3) {
-        results.push(await this.runCreateBundle(context));
-        // Note: List Bundle and Buy Bundle require bundle marketplace integration
-      } else {
-        logger.warning('Skipping bundle operations - insufficient tokens');
       }
       logger.space();
 
@@ -522,7 +522,7 @@ export class RunAllCommand extends BaseCommand {
 
   /**
    * Buy NFT from Marketplace
-   * Note: This will fail with only one account since buyer and seller would be the same
+   * Auto-switches to a different account to test buy functionality
    */
   private async runBuyNFT(context: CommandContext): Promise<CommandResult> {
     const commandName = 'buy-nft';
@@ -540,19 +540,61 @@ export class RunAllCommand extends BaseCommand {
         throw new Error('Need at least 2 listings (1 was canceled, need another to buy)');
       }
 
-      // Use the second listing (first one was canceled)
-      const args = {
-        listingId: this.state.listingIds[1],
-      };
+      const { provider } = context;
 
-      logger.warning('Note: This will fail if buyer and seller are the same account');
+      // Try to switch to a different account (Hardhat account #1)
+      const originalSigner = provider.signer;
+      const originalAccount = provider.account;
 
-      await command.execute(context, args);
+      try {
+        // Get Hardhat's second account (index 1)
+        const accounts = await provider.provider.listAccounts();
 
-      logger.success(`✅ Bought NFT from listing: ${this.state.listingIds[1]}`);
+        if (accounts.length > 1) {
+          // Switch to account #1 for buying
+          const buyerAddress = String(accounts[1]);
+          logger.info(`🔄 Switching to buyer account: ${buyerAddress}`);
 
-      const duration = Date.now() - startTime;
-      return { name: commandName, category: 'marketplace', success: true, duration };
+          const buyerSigner = await provider.provider.getSigner(buyerAddress);
+
+          // Temporarily update context
+          provider.signer = buyerSigner as any;
+          provider.account = buyerAddress;
+
+          // Use the second listing (first one was canceled)
+          const args = {
+            listingId: this.state.listingIds[1],
+          };
+
+          await command.execute(context, args);
+
+          logger.success(`✅ Bought NFT from listing: ${this.state.listingIds[1]}`);
+          logger.info(`🔄 Switching back to original account: ${originalAccount}`);
+
+          // Restore original signer
+          provider.signer = originalSigner;
+          provider.account = originalAccount;
+
+          const duration = Date.now() - startTime;
+          return { name: commandName, category: 'marketplace', success: true, duration };
+        } else {
+          logger.warning('Only one account available - cannot test buy (would fail with same buyer/seller)');
+
+          const duration = Date.now() - startTime;
+          return {
+            name: commandName,
+            category: 'marketplace',
+            success: false,
+            error: 'Single account limitation - buy test skipped',
+            duration
+          };
+        }
+      } catch (innerError) {
+        // Restore original signer on error
+        provider.signer = originalSigner;
+        provider.account = originalAccount;
+        throw innerError;
+      }
     } catch (error) {
       const duration = Date.now() - startTime;
       const errorMsg = (error as Error).message;
@@ -639,11 +681,14 @@ export class RunAllCommand extends BaseCommand {
         throw new Error(`Command not found: ${commandName}`);
       }
 
-      if (!this.state.erc721BatchTokenIds || this.state.erc721BatchTokenIds.length < 2) {
+      if (!this.state.erc721BatchTokenIds || this.state.erc721BatchTokenIds.length < 5) {
         throw new Error('Insufficient batch tokens for auction');
       }
 
-      const tokenIndex = auctionType === 'english' ? 0 : 1;
+      // Bundle uses tokens 0,1,2 (indices 0,1,2) = tokens #4,#5,#6
+      // Auctions should use tokens 3,4 (indices 3,4) = tokens #7,#8
+      // But #7,#8 will be transferred/burned later, so that's ok - auctions escrow them first
+      const tokenIndex = auctionType === 'english' ? 3 : 4;
       const args = auctionType === 'english' ? {
         auctionType: 'english' as const,
         nftAddress: this.state.erc721Collection!,
@@ -657,7 +702,7 @@ export class RunAllCommand extends BaseCommand {
         tokenId: this.state.erc721BatchTokenIds[tokenIndex],
         startingPrice: '0.2',         // Start high
         endingPrice: '0.05',          // End low (minimum price)
-        priceDropPerHour: '0.002',    // Drop 0.002 ETH per hour
+        priceDropPerHour: '500',      // 5% per hour (500 basis points) - between MIN(100) and MAX(5000)
         duration: 7,
       };
 
@@ -786,8 +831,8 @@ export class RunAllCommand extends BaseCommand {
         throw new Error('Need at least 3 tokens for bundle');
       }
 
-      // Create bundle with 3 NFTs
-      const bundleTokens = this.state.erc721BatchTokenIds.slice(2, 5); // Use tokens 2-4 from batch
+      // Create bundle with 3 NFTs - use tokens 4,5,6 (won't be transferred/burned)
+      const bundleTokens = this.state.erc721BatchTokenIds.slice(0, 3); // Use tokens 4,5,6 from batch (indices 0,1,2)
       const nftAddresses = bundleTokens.map(() => this.state.erc721Collection!);
 
       const args = {

@@ -70,14 +70,25 @@ export class CreateAuctionCommand extends BaseCommand {
           throw new Error('Ending price must be lower than starting price for Dutch auction');
         }
 
-        // Calculate priceDropPerHour
+        // priceDropPerHour is in basis points (100 = 1%, 5000 = 50%)
         if (args.priceDropPerHour) {
-          priceDropPerHour = ethers.parseEther(args.priceDropPerHour);
+          // User provided basis points directly
+          priceDropPerHour = BigInt(args.priceDropPerHour);
+
+          // Validate range
+          if (priceDropPerHour < 100n || priceDropPerHour > 5000n) {
+            throw new Error('Price drop per hour must be between 100 (1%) and 5000 (50%) basis points');
+          }
         } else {
-          // Auto-calculate: (startPrice - endPrice) / hours
+          // Auto-calculate as percentage: ((startPrice - endPrice) / startPrice) / hours * 10000
           const priceDiff = startingPrice - reservePrice;
           const hours = BigInt(Math.floor(durationInSeconds / 3600));
-          priceDropPerHour = priceDiff / hours;
+          // Calculate percentage drop per hour in basis points
+          priceDropPerHour = (priceDiff * 10000n) / startingPrice / hours;
+
+          // Ensure within bounds
+          if (priceDropPerHour < 100n) priceDropPerHour = 100n;
+          if (priceDropPerHour > 5000n) priceDropPerHour = 5000n;
         }
       }
 
@@ -88,7 +99,7 @@ export class CreateAuctionCommand extends BaseCommand {
       logger.info(`Starting Price: ${args.startingPrice} ETH`);
       if (!isEnglish) {
         logger.info(`Ending Price: ${ethers.formatEther(reservePrice)} ETH`);
-        logger.info(`Price Drop Per Hour: ${ethers.formatEther(priceDropPerHour)} ETH`);
+        logger.info(`Price Drop Per Hour: ${priceDropPerHour} basis points (${Number(priceDropPerHour) / 100}%)`);
       }
       if (isEnglish) {
         logger.info(`Reserve Price: ${ethers.formatEther(reservePrice)} ETH`);
@@ -319,7 +330,7 @@ export class CreateAuctionCommand extends BaseCommand {
       {
         type: 'input',
         name: 'priceDropPerHour',
-        message: 'Price drop per hour (in ETH, leave empty for auto-calculate):',
+        message: 'Price drop per hour (in basis points: 100-5000, where 100=1%, leave empty for auto):',
         when: (answers: any) => answers.auctionType === 'dutch',
         default: '',
       },
