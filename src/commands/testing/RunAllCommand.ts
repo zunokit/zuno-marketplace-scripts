@@ -91,7 +91,7 @@ export class RunAllCommand extends BaseCommand {
       }
 
       if (this.state.erc1155Collection && this.state.erc1155TokenIds && this.state.erc1155TokenIds.length > 0) {
-        results.push(await this.runListNFT(context, 'ERC1155'));
+        results.push(await this.runListNFT(context, 'ERC1155', 0, 1)); // List only 1 unit (ERC1155 mint creates 1 unit per token ID)
       } else {
         logger.warning('Skipping ERC1155 listing - no tokens available');
       }
@@ -428,7 +428,8 @@ export class RunAllCommand extends BaseCommand {
   private async runListNFT(
     context: CommandContext,
     standard: 'ERC721' | 'ERC1155',
-    tokenIndex: number = 0
+    tokenIndex: number = 0,
+    amount?: number
   ): Promise<CommandResult> {
     const commandName = 'list-nft';
     const startTime = Date.now();
@@ -451,7 +452,7 @@ export class RunAllCommand extends BaseCommand {
         tokenId: this.state.erc1155TokenIds![tokenIndex],
         price: '0.05',
         duration: 7,
-        amount: 50, // List 50 out of 100 tokens
+        amount: amount || 1, // Use provided amount or default to 1 (ERC1155 mint creates 1 unit per token ID)
       };
 
       const originalInfo = logger.info.bind(logger);
@@ -552,7 +553,11 @@ export class RunAllCommand extends BaseCommand {
 
         if (accounts.length > 1) {
           // Switch to account #1 for buying
-          const buyerAddress = String(accounts[1]);
+          // accounts[1] returns an AddressLike object in ethers v6, need to get the address property
+          const buyerAddressObj = accounts[1];
+          const buyerAddress = typeof buyerAddressObj === 'string'
+            ? buyerAddressObj
+            : (buyerAddressObj as any).address || String(buyerAddressObj);
           logger.info(`🔄 Switching to buyer account: ${buyerAddress}`);
 
           const buyerSigner = await provider.provider.getSigner(buyerAddress);
@@ -831,9 +836,33 @@ export class RunAllCommand extends BaseCommand {
         throw new Error('Need at least 3 tokens for bundle');
       }
 
+      const { provider } = context;
+      const bundleManagerAddress = provider.addresses.bundleManager;
+
       // Create bundle with 3 NFTs - use tokens 4,5,6 (won't be transferred/burned)
       const bundleTokens = this.state.erc721BatchTokenIds.slice(0, 3); // Use tokens 4,5,6 from batch (indices 0,1,2)
       const nftAddresses = bundleTokens.map(() => this.state.erc721Collection!);
+
+      // Approve all NFTs to Bundle Manager first
+      logger.info('Approving NFTs to Bundle Manager...');
+      const collectionABI = await context.abiProvider.getABI('ERC721Collection');
+      const collection = new (await import('ethers')).ethers.Contract(
+        this.state.erc721Collection!,
+        collectionABI,
+        provider.signer
+      );
+
+      // Check if already approved for all
+      const isApprovedForAll = await collection.isApprovedForAll!(provider.account, bundleManagerAddress);
+
+      if (!isApprovedForAll) {
+        logger.info('Setting approval for all tokens...');
+        const approveTx = await collection.setApprovalForAll!(bundleManagerAddress, true);
+        await (await import('@/providers/ProviderContext')).waitForTransaction(approveTx, 'Approve Bundle Manager');
+        logger.success('Bundle Manager approved!');
+      } else {
+        logger.info('Already approved!');
+      }
 
       const args = {
         nftAddresses,
