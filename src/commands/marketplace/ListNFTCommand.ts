@@ -147,7 +147,7 @@ export class ListNFTCommand extends BaseCommand {
         const listingEvent = receipt.logs.find(
           (log) =>
             log.topics[0] ===
-            ethers.id('NFTListed(bytes32,address,uint256,address,uint256,uint256,address,uint256)')
+            ethers.id('NFTListed(bytes32,address,uint256,address,uint256)')
         );
 
         if (listingEvent) {
