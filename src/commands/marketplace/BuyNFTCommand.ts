@@ -92,7 +92,7 @@ export class BuyNFTCommand extends BaseCommand {
     context: CommandContext,
     listingId: string,
     provider: any
-  ): Promise<{ listing: Listing; exchange: ethers.Contract; exchangeAddress: string }> {
+  ): Promise<{ listing: Listing; exchange: ethers.Contract; exchangeAddress: string; isERC1155: boolean }> {
     // Try ERC721 exchange first
     let exchangeAddress = provider.addresses.erc721Exchange;
     let exchangeABI = await context.abiProvider.getABI('ERC721NFTExchange');
@@ -102,7 +102,7 @@ export class BuyNFTCommand extends BaseCommand {
       const listing: Listing = await exchange.s_listings!(listingId);
       // Verify listing exists (contractAddress should not be zero address)
       if (listing.contractAddress !== ethers.ZeroAddress) {
-        return { listing, exchange, exchangeAddress };
+        return { listing, exchange, exchangeAddress, isERC1155: false };
       }
     } catch {
       // Continue to try ERC1155
@@ -114,7 +114,7 @@ export class BuyNFTCommand extends BaseCommand {
     exchange = new ethers.Contract(exchangeAddress, exchangeABI, provider.signer);
     const listing: Listing = await exchange.s_listings!(listingId);
 
-    return { listing, exchange, exchangeAddress };
+    return { listing, exchange, exchangeAddress, isERC1155: true };
   }
 
   /**
@@ -210,7 +210,7 @@ export class BuyNFTCommand extends BaseCommand {
 
       // STEP 2: Get listing details from exchange
       // Try both ERC721 and ERC1155 exchanges to find the listing
-      const { listing, exchange } = await this.getListingFromExchanges(context, listingId, provider);
+      const { listing, exchange, isERC1155 } = await this.getListingFromExchanges(context, listingId, provider);
 
       // STEP 3: Validate listing is purchasable
       this.validateListing(listing, provider.account);
@@ -223,7 +223,7 @@ export class BuyNFTCommand extends BaseCommand {
       logger.info(`Seller: ${listing.seller}`);
       logger.info(`NFT Contract: ${listing.contractAddress}`);
       logger.info(`Token ID: ${listing.tokenId.toString()}`);
-      if (listing.amount > 1n) {
+      if (isERC1155 && listing.amount > 0n) {
         logger.info(`Amount: ${listing.amount.toString()}`);
       }
       logger.info(`Listing Price: ${ethers.formatEther(listing.price)} ETH`);
@@ -249,14 +249,19 @@ export class BuyNFTCommand extends BaseCommand {
 
       // STEP 6: Execute purchase transaction
       logger.info('Purchasing NFT...');
+
+      // Both ERC721 and ERC1155 support buyNFT(bytes32) for purchasing the full listing
+      // ERC1155 also supports buyNFT(bytes32, uint256) for partial amounts
+      // Since we're buying the full listing, use the single-parameter version for both
       const tx = await exchange.buyNFT!(listingId, { value: totalPrice });
+
       await waitForTransaction(tx, 'Buy NFT');
 
       // STEP 7: Display success message
       logger.success('NFT Purchased Successfully!');
       logger.info(`NFT Contract: ${listing.contractAddress}`);
       logger.info(`Token ID: ${listing.tokenId.toString()}`);
-      if (listing.amount > 1n) {
+      if (isERC1155 && listing.amount > 0n) {
         logger.info(`Amount: ${listing.amount.toString()}`);
       }
       logger.info(`Total Paid: ${ethers.formatEther(totalPrice)} ETH`);
