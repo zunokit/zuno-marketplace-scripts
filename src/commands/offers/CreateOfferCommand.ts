@@ -95,7 +95,7 @@ export class CreateOfferCommand extends BaseCommand {
         logger.info(`Looking for OfferCreated event with hash: ${eventHash}`);
         logger.info(`Receipt has ${receipt.logs.length} logs`);
 
-        const offerEvent = receipt.logs.find((log) => log.topics[0] === eventHash);
+        const offerEvent = receipt.logs.find((log: any) => log.topics[0] === eventHash);
 
         if (offerEvent) {
           logger.info(`Found OfferCreated event with ${offerEvent.topics.length} topics`);
@@ -110,7 +110,7 @@ export class CreateOfferCommand extends BaseCommand {
         } else {
           logger.warning('OfferCreated event not found in receipt');
           // Log all event hashes for debugging
-          receipt.logs.forEach((log, idx) => {
+          receipt.logs.forEach((log: any, idx: number) => {
             logger.info(`Log ${idx}: ${log.topics[0]}`);
           });
         }
