@@ -1833,7 +1833,7 @@ export class RunAllCommand extends BaseCommand {
    * PHASE 11: Cancel Auction
    */
   private async runCancelAuction(
-    context: CommandContext,
+    _context: CommandContext,
     auctionType: "english" | "dutch"
   ): Promise<CommandResult> {
     const commandName = `cancel-auction-${auctionType}`;
@@ -1874,7 +1874,7 @@ export class RunAllCommand extends BaseCommand {
    * PHASE 11: Finalize Auction
    */
   private async runFinalizeAuction(
-    context: CommandContext,
+    _context: CommandContext,
     auctionType: "english" | "dutch"
   ): Promise<CommandResult> {
     const commandName = `finalize-auction-${auctionType}`;
@@ -1915,7 +1915,7 @@ export class RunAllCommand extends BaseCommand {
    * PHASE 12: Cancel Bundle
    */
   private async runCancelBundle(
-    context: CommandContext
+    _context: CommandContext
   ): Promise<CommandResult> {
     const commandName = "cancel-bundle";
     const startTime = Date.now();
@@ -2057,7 +2057,7 @@ export class RunAllCommand extends BaseCommand {
    * PHASE 13: Test Expired Listing
    */
   private async runTestExpiredListing(
-    context: CommandContext
+    _context: CommandContext
   ): Promise<CommandResult> {
     const commandName = "test-expired-listing";
     const startTime = Date.now();
@@ -2096,7 +2096,7 @@ export class RunAllCommand extends BaseCommand {
    * PHASE 13: Test Insufficient Funds
    */
   private async runTestInsufficientFunds(
-    context: CommandContext
+    _context: CommandContext
   ): Promise<CommandResult> {
     const commandName = "test-insufficient-funds";
     const startTime = Date.now();
