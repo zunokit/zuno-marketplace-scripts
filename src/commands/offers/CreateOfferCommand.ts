@@ -41,8 +41,14 @@ export class CreateOfferCommand extends BaseCommand {
       const priceInWei = ethers.parseEther(args.offerPrice);
       const durationInSeconds = args.duration * 24 * 60 * 60;
 
-      // Calculate expiration timestamp (not duration)
-      const expiration = Math.floor(Date.now() / 1000) + durationInSeconds;
+      // Get current block timestamp from blockchain (not Date.now())
+      const currentBlock = await provider.provider.getBlock('latest');
+      const currentTimestamp = currentBlock ? currentBlock.timestamp : Math.floor(Date.now() / 1000);
+      const expiration = currentTimestamp + durationInSeconds;
+
+      logger.info(`Current block timestamp: ${currentTimestamp}`);
+      logger.info(`Offer expiration: ${expiration}`);
+      logger.info(`Duration: ${durationInSeconds} seconds (${durationInSeconds / 86400} days)`);
 
       logger.subsection('Offer Details');
       logger.info(`NFT Contract: ${args.nftAddress}`);
@@ -79,36 +85,37 @@ export class CreateOfferCommand extends BaseCommand {
       const receipt = await waitForTransaction(tx, 'Create Offer');
 
       // Extract offer ID from events
+      // Event: OfferCreated(bytes32 indexed offerId, address indexed offerer, address indexed collection, uint256 tokenId, uint256 amount, OfferType offerType)
       let offerId: string | null = null;
 
       try {
-        const possibleSignatures = [
-          'OfferCreated(bytes32,address,address,uint256,uint256,uint256)',
-          'OfferCreated(bytes32,address,uint256,address,uint256,uint256)',
-          'OfferCreated(bytes32,address,uint256,uint256,uint256)',
-        ];
+        const eventSignature = 'OfferCreated(bytes32,address,address,uint256,uint256,uint8)';
+        const eventHash = ethers.id(eventSignature);
 
-        for (const sig of possibleSignatures) {
-          const eventHash = ethers.id(sig);
-          const offerEvent = receipt.logs.find((log) => log.topics[0] === eventHash);
+        logger.info(`Looking for OfferCreated event with hash: ${eventHash}`);
+        logger.info(`Receipt has ${receipt.logs.length} logs`);
 
-          if (offerEvent && offerEvent.topics.length > 1) {
+        const offerEvent = receipt.logs.find((log: any) => log.topics[0] === eventHash);
+
+        if (offerEvent) {
+          logger.info(`Found OfferCreated event with ${offerEvent.topics.length} topics`);
+          if (offerEvent.topics.length > 1) {
             offerId = offerEvent.topics[1] || null;
             logger.success('Offer Created Successfully!');
             logger.info(`Offer ID: ${offerId}`);
 
-            const expirationDate = new Date(Date.now() + durationInSeconds * 1000);
+            const expirationDate = new Date(expiration * 1000);
             logger.info(`Expires: ${expirationDate.toLocaleString()}`);
-            break;
           }
-        }
-
-        if (!offerId) {
-          logger.warning('Could not extract offer ID from transaction');
-          logger.info(`Transaction hash: ${receipt.hash}`);
+        } else {
+          logger.warning('OfferCreated event not found in receipt');
+          // Log all event hashes for debugging
+          receipt.logs.forEach((log: any, idx: number) => {
+            logger.info(`Log ${idx}: ${log.topics[0]}`);
+          });
         }
       } catch (error) {
-        logger.warning('Event parsing failed');
+        logger.error(`Event parsing error: ${(error as Error).message}`);
         logger.info(`Transaction hash: ${receipt.hash}`);
       }
 
