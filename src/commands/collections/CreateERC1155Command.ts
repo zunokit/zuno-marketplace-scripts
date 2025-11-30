@@ -18,14 +18,18 @@ export class CreateERC1155Command extends BaseCommand {
     this.logStart();
 
     try {
+      const maxSupply = args?.maxSupply || 10000;
       const params = {
         name: args?.name || 'Zuno ERC1155 Collection',
         symbol: args?.symbol || 'ZUNO1155',
-        maxSupply: args?.maxSupply || 10000,
+        maxSupply,
         mintPrice: args?.mintPrice || '0.01',
         royaltyFee: args?.royaltyFee || 500,
-        mintLimitPerWallet: args?.mintLimitPerWallet || 1000,
-        baseURI: args?.tokenURI || 'https://api.example.com/erc1155/metadata/{id}',
+        // IMPORTANT: mintLimitPerWallet must be > 0, otherwise minting is blocked
+        mintLimitPerWallet: args?.mintLimitPerWallet || maxSupply,
+        // Skip allowlist stage for public minting
+        allowlistStageDuration: 0,
+        tokenURI: args?.tokenURI || 'https://api.example.com/erc1155/metadata/{id}',
       };
 
       logger.subsection('Collection Parameters');

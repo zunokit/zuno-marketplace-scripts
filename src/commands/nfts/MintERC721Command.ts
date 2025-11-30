@@ -4,8 +4,14 @@
 
 import { ethers } from 'ethers';
 import { BaseCommand } from '@core/Command.interface';
-import { CommandMetadata, CommandContext, MintParams } from '@types';
-import { validateAddress, validatePositiveNumber, logger } from '@utils';
+import { CommandMetadata, CommandContext } from '@types';
+import { validateAddress, logger } from '@utils';
+
+interface MintERC721Params {
+  collectionAddress: string;
+  recipient?: string;
+  mintPrice?: string;
+}
 
 export class MintERC721Command extends BaseCommand {
   metadata: CommandMetadata = {
@@ -15,7 +21,7 @@ export class MintERC721Command extends BaseCommand {
     aliases: ['mint721'],
   };
 
-  async execute(context: CommandContext, args?: MintParams): Promise<void> {
+  async execute(context: CommandContext, args?: MintERC721Params): Promise<void> {
     this.logStart();
 
     try {
@@ -24,28 +30,32 @@ export class MintERC721Command extends BaseCommand {
       }
 
       validateAddress(args.collectionAddress, 'Collection address');
-      const quantity = args.quantity || 1;
-      validatePositiveNumber(quantity, 'Quantity');
-
       const recipient = args.recipient || context.account;
+      const mintPrice = args.mintPrice || '0';
 
       logger.subsection('Minting Parameters');
       logger.info(`Collection: ${args.collectionAddress}`);
       logger.info(`Recipient: ${recipient}`);
-      logger.info(`Quantity: ${quantity}`);
+      if (mintPrice !== '0') {
+        logger.info(`Mint Price: ${mintPrice} ETH`);
+      }
       logger.space();
 
       logger.info('Minting via SDK...');
+
+      // Pass value in wei for paid mints
+      const value = mintPrice !== '0' ? ethers.parseEther(mintPrice).toString() : undefined;
       
       const result = await context.sdk.collection.mintERC721({
         collectionAddress: args.collectionAddress,
         recipient,
+        value,
       });
-      logger.success(`Minted ${quantity} NFT(s)!`);
+      logger.success('Minted 1 NFT!');
       logger.info(`Token ID: ${result.tokenId}`);
       logger.info(`Transaction: ${result.tx.hash}`);
 
-      this.logSuccess(`Successfully minted ${quantity} NFT(s)!`);
+      this.logSuccess('Successfully minted NFT!');
     } catch (error) {
       this.logError(error as Error);
       throw error;
@@ -61,10 +71,10 @@ export class MintERC721Command extends BaseCommand {
         validate: (input: string) => ethers.isAddress(input) || 'Invalid address',
       },
       {
-        type: 'number',
-        name: 'quantity',
-        message: 'Quantity to mint:',
-        default: 1,
+        type: 'input',
+        name: 'mintPrice',
+        message: 'Mint price in ETH (0 for free mint):',
+        default: '0',
       },
       {
         type: 'input',

@@ -27,11 +27,19 @@ export class CancelListingCommand extends BaseCommand {
         throw new Error('Listing ID is required');
       }
 
+      // Convert listing ID to hex format if it's a decimal string
+      // SDK expects bytes32 format (0x...)
+      let listingId = args.listingId;
+      if (!listingId.startsWith('0x')) {
+        listingId = '0x' + BigInt(listingId).toString(16).padStart(64, '0');
+      }
+
       logger.info(`Listing ID: ${args.listingId}`);
+      logger.info(`Listing ID (hex): ${listingId}`);
       logger.space();
 
       logger.info('Cancelling listing via SDK...');
-      const result = await context.sdk.exchange.cancelListing(args.listingId);
+      const result = await context.sdk.exchange.cancelListing(listingId);
 
       logger.success('Listing Cancelled Successfully!');
       logger.info(`Transaction: ${result.tx.hash}`);

@@ -4,8 +4,15 @@
 
 import { ethers } from 'ethers';
 import { BaseCommand } from '@core/Command.interface';
-import { CommandMetadata, CommandContext, MintParams } from '@types';
+import { CommandMetadata, CommandContext } from '@types';
 import { validateAddress, validatePositiveNumber, logger } from '@utils';
+
+interface MintERC1155Params {
+  collectionAddress: string;
+  recipient?: string;
+  amount?: number;
+  mintPrice?: string;
+}
 
 export class MintERC1155Command extends BaseCommand {
   metadata: CommandMetadata = {
@@ -15,7 +22,7 @@ export class MintERC1155Command extends BaseCommand {
     aliases: ['mint1155'],
   };
 
-  async execute(context: CommandContext, args?: MintParams): Promise<void> {
+  async execute(context: CommandContext, args?: MintERC1155Params): Promise<void> {
     this.logStart();
 
     try {
@@ -28,19 +35,27 @@ export class MintERC1155Command extends BaseCommand {
       validatePositiveNumber(amount, 'Amount');
 
       const recipient = args.recipient || context.account;
+      const mintPrice = args.mintPrice || '0';
 
       logger.subsection('Minting Parameters');
       logger.info(`Collection: ${args.collectionAddress}`);
       logger.info(`Recipient: ${recipient}`);
       logger.info(`Amount: ${amount}`);
+      if (mintPrice !== '0') {
+        logger.info(`Mint Price: ${mintPrice} ETH`);
+      }
       logger.space();
 
       logger.info('Minting via SDK...');
+
+      // Pass value in wei for paid mints
+      const value = mintPrice !== '0' ? ethers.parseEther(mintPrice).toString() : undefined;
 
       const result = await context.sdk.collection.mintERC1155({
         collectionAddress: args.collectionAddress,
         recipient,
         amount,
+        value,
       });
       logger.success(`Minted ${amount} token(s)!`);
       logger.info(`Transaction: ${result.tx.hash}`);
@@ -65,6 +80,12 @@ export class MintERC1155Command extends BaseCommand {
         name: 'amount',
         message: 'Amount to mint:',
         default: 1,
+      },
+      {
+        type: 'input',
+        name: 'mintPrice',
+        message: 'Mint price in ETH (0 for free mint):',
+        default: '0',
       },
       {
         type: 'input',
