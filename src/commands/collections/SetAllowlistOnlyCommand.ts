@@ -37,10 +37,11 @@ export class SetAllowlistOnlyCommand extends BaseCommand {
       logger.space();
 
       logger.info('Setting allowlist mode via SDK...');
-      const result = await context.sdk.collection.setAllowlistOnly({
-        collectionAddress: args.collectionAddress,
-        enabled: args.enabled,
-      });
+      // SDK expects: setAllowlistOnly(collectionAddress, enabled)
+      const result = await context.sdk.collection.setAllowlistOnly(
+        args.collectionAddress,
+        args.enabled
+      );
 
       logger.success('Allowlist Mode Updated!');
       logger.info(`Transaction: ${result.tx.hash}`);

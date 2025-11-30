@@ -41,10 +41,11 @@ export class AddToAllowlistCommand extends BaseCommand {
       logger.space();
 
       logger.info('Adding to allowlist via SDK...');
-      const result = await context.sdk.collection.addToAllowlist({
-        collectionAddress: args.collectionAddress,
-        addresses: args.addresses,
-      });
+      // SDK expects: addToAllowlist(collectionAddress, addresses)
+      const result = await context.sdk.collection.addToAllowlist(
+        args.collectionAddress,
+        args.addresses
+      );
 
       logger.success('Addresses Added to Allowlist!');
       logger.info(`Transaction: ${result.tx.hash}`);

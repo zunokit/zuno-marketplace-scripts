@@ -31,9 +31,8 @@ export class WithdrawBidCommand extends BaseCommand {
       logger.space();
 
       logger.info('Withdrawing bid via SDK...');
-      const result = await context.sdk.auction.withdrawBid({
-        auctionId: args.auctionId,
-      });
+      // SDK expects: withdrawBid(auctionId)
+      const result = await context.sdk.auction.withdrawBid(args.auctionId);
 
       logger.success('Bid Withdrawn Successfully!');
       logger.info(`Transaction: ${result.tx.hash}`);

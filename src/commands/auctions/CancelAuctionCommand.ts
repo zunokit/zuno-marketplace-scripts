@@ -31,9 +31,8 @@ export class CancelAuctionCommand extends BaseCommand {
       logger.space();
 
       logger.info('Cancelling auction via SDK...');
-      const result = await context.sdk.auction.cancelAuction({
-        auctionId: args.auctionId,
-      });
+      // SDK expects: cancelAuction(auctionId)
+      const result = await context.sdk.auction.cancelAuction(args.auctionId);
 
       logger.success('Auction Cancelled Successfully!');
       logger.info(`Transaction: ${result.tx.hash}`);

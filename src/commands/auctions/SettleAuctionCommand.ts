@@ -31,9 +31,8 @@ export class SettleAuctionCommand extends BaseCommand {
       logger.space();
 
       logger.info('Settling auction via SDK...');
-      const result = await context.sdk.auction.settleAuction({
-        auctionId: args.auctionId,
-      });
+      // SDK expects: settleAuction(auctionId)
+      const result = await context.sdk.auction.settleAuction(args.auctionId);
 
       logger.success('Auction Settled Successfully!');
       logger.info(`Transaction: ${result.tx.hash}`);
