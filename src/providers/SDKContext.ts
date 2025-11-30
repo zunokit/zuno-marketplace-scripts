@@ -44,16 +44,18 @@ export async function createSDKContext(
   const signer = await provider.getSigner(accountIndex);
   const account = await signer.getAddress();
 
-  // Get API key from environment
+  // Get API config from environment
   const apiKey = process.env.ZUNO_API_KEY || process.env.ABI_API_KEY;
   if (!apiKey) {
-    throw new Error('ZUNO_API_KEY or ABI_API_KEY is required in .env');
+    throw new Error('ZUNO_API_KEY is required in .env');
   }
+  const apiUrl = process.env.ZUNO_API_URL;
 
   // Create SDK instance with provider and signer
   const sdk = new ZunoSDK(
     {
       apiKey,
+      apiUrl,
       network: config.chainId,
       logger: { level: process.env.DEBUG ? 'debug' : 'info' },
     },
