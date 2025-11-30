@@ -54,6 +54,11 @@ export class ListNFTCommand extends BaseCommand {
 
       logger.success('NFT Listed Successfully!');
       logger.info(`Listing ID: ${result.listingId}`);
+      // Convert to hex for display (needed for buy/cancel operations)
+      const listingIdHex = result.listingId.startsWith('0x')
+        ? result.listingId
+        : '0x' + BigInt(result.listingId).toString(16).padStart(64, '0');
+      logger.info(`Listing ID (hex): ${listingIdHex}`);
       logger.info(`Transaction: ${result.tx.hash}`);
 
       const expirationDate = new Date(Date.now() + args.duration * 24 * 60 * 60 * 1000);

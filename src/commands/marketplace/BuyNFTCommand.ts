@@ -27,12 +27,19 @@ export class BuyNFTCommand extends BaseCommand {
         throw new Error('Listing ID is required');
       }
 
+      // Convert listing ID to hex format if it's a decimal string
+      let listingId = args.listingId;
+      if (!listingId.startsWith('0x')) {
+        listingId = '0x' + BigInt(listingId).toString(16).padStart(64, '0');
+      }
+
       logger.info(`Listing ID: ${args.listingId}`);
+      logger.info(`Listing ID (hex): ${listingId}`);
       logger.space();
 
       logger.info('Purchasing NFT via SDK...');
       const result = await context.sdk.exchange.buyNFT({
-        listingId: args.listingId,
+        listingId,
       });
 
       logger.success('NFT Purchased Successfully!');

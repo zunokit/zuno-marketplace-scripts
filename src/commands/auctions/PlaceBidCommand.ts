@@ -61,7 +61,7 @@ export class PlaceBidCommand extends BaseCommand {
         type: 'input',
         name: 'auctionId',
         message: 'Auction ID:',
-        validate: (input: string) => (input.length === 66 && input.startsWith('0x')) || 'Invalid auction ID format',
+        validate: (input: string) => input.length > 0 || 'Auction ID is required',
       },
       {
         type: 'input',
