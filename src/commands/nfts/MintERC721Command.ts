@@ -37,23 +37,13 @@ export class MintERC721Command extends BaseCommand {
 
       logger.info('Minting via SDK...');
       
-      if (quantity > 1) {
-        const result = await context.sdk.collection.batchMintERC721({
-          collectionAddress: args.collectionAddress,
-          to: recipient,
-          quantity,
-        });
-        logger.success(`Minted ${quantity} NFTs!`);
-        logger.info(`Transaction: ${result.tx.hash}`);
-      } else {
-        const result = await context.sdk.collection.mintERC721({
-          collectionAddress: args.collectionAddress,
-          to: recipient,
-        });
-        logger.success('Minted 1 NFT!');
-        logger.info(`Token ID: ${result.tokenId}`);
-        logger.info(`Transaction: ${result.tx.hash}`);
-      }
+      const result = await context.sdk.collection.mintERC721({
+        collectionAddress: args.collectionAddress,
+        recipient,
+      });
+      logger.success(`Minted ${quantity} NFT(s)!`);
+      logger.info(`Token ID: ${result.tokenId}`);
+      logger.info(`Transaction: ${result.tx.hash}`);
 
       this.logSuccess(`Successfully minted ${quantity} NFT(s)!`);
     } catch (error) {

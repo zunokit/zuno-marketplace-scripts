@@ -31,9 +31,7 @@ export class CancelListingCommand extends BaseCommand {
       logger.space();
 
       logger.info('Cancelling listing via SDK...');
-      const result = await context.sdk.exchange.cancelListing({
-        listingId: args.listingId,
-      });
+      const result = await context.sdk.exchange.cancelListing(args.listingId);
 
       logger.success('Listing Cancelled Successfully!');
       logger.info(`Transaction: ${result.tx.hash}`);

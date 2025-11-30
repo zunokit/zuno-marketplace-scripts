@@ -71,8 +71,8 @@ export class CreateAuctionCommand extends BaseCommand {
         result = await context.sdk.auction.createDutchAuction({
           collectionAddress: args.nftAddress,
           tokenId: String(args.tokenId),
-          startingPrice: args.startingPrice,
-          endingPrice: args.endingPrice,
+          startPrice: args.startingPrice,
+          endPrice: args.endingPrice,
           duration: durationInSeconds,
           amount: args.amount,
         });

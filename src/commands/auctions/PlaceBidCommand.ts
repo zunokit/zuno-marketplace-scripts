@@ -35,16 +35,14 @@ export class PlaceBidCommand extends BaseCommand {
         logger.info(`Placing bid of ${args.bidAmount} ETH via SDK...`);
         const result = await context.sdk.auction.placeBid({
           auctionId: args.auctionId,
-          bidAmount: args.bidAmount,
+          amount: args.bidAmount,
         });
 
         logger.success('Bid Placed Successfully!');
         logger.info(`Transaction: ${result.tx.hash}`);
       } else {
         logger.info('Buying from Dutch auction via SDK...');
-        const result = await context.sdk.auction.buyNow({
-          auctionId: args.auctionId,
-        });
+        const result = await context.sdk.auction.buyNow(args.auctionId);
 
         logger.success('NFT Purchased Successfully!');
         logger.info(`Transaction: ${result.tx.hash}`);

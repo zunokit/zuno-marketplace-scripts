@@ -37,24 +37,13 @@ export class MintERC1155Command extends BaseCommand {
 
       logger.info('Minting via SDK...');
 
-      if (amount > 1) {
-        const result = await context.sdk.collection.batchMintERC1155({
-          collectionAddress: args.collectionAddress,
-          to: recipient,
-          amount,
-        });
-        logger.success(`Minted ${amount} tokens!`);
-        logger.info(`Transaction: ${result.tx.hash}`);
-      } else {
-        const result = await context.sdk.collection.mintERC1155({
-          collectionAddress: args.collectionAddress,
-          to: recipient,
-          amount: 1,
-        });
-        logger.success('Minted 1 token!');
-        logger.info(`Token ID: ${result.tokenId}`);
-        logger.info(`Transaction: ${result.tx.hash}`);
-      }
+      const result = await context.sdk.collection.mintERC1155({
+        collectionAddress: args.collectionAddress,
+        recipient,
+        amount,
+      });
+      logger.success(`Minted ${amount} token(s)!`);
+      logger.info(`Transaction: ${result.tx.hash}`);
 
       this.logSuccess(`Successfully minted ${amount} token(s)!`);
     } catch (error) {

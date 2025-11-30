@@ -50,15 +50,15 @@ export async function createSDKContext(
     throw new Error('ZUNO_API_KEY or ABI_API_KEY is required in .env');
   }
 
-  // Create SDK instance
-  const sdk = new ZunoSDK({
-    apiKey,
-    network: config.chainId,
-    logger: { level: process.env.DEBUG ? 'debug' : 'info' },
-  });
-
-  // Set provider and signer
-  sdk.setProvider(provider, signer);
+  // Create SDK instance with provider and signer
+  const sdk = new ZunoSDK(
+    {
+      apiKey,
+      network: config.chainId,
+      logger: { level: process.env.DEBUG ? 'debug' : 'info' },
+    },
+    { provider, signer }
+  );
 
   // Log connection info
   logger.section(`Connected to ${network} network`);

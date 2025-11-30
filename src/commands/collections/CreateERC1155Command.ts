@@ -40,10 +40,10 @@ export class CreateERC1155Command extends BaseCommand {
       const result = await context.sdk.collection.createERC1155Collection(params);
 
       logger.success('ERC1155 Collection created successfully!');
-      logger.info(`Collection Address: ${result.collectionAddress}`);
+      logger.info(`Collection Address: ${result.address}`);
       logger.info(`Transaction Hash: ${result.tx.hash}`);
 
-      this.logSuccess(`ERC1155 collection deployed at: ${result.collectionAddress}`);
+      this.logSuccess(`ERC1155 collection deployed at: ${result.address}`);
     } catch (error) {
       this.logError(error as Error);
       throw error;
