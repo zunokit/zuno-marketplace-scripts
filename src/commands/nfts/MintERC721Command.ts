@@ -5,9 +5,7 @@
 import { ethers } from 'ethers';
 import { BaseCommand } from '@core/Command.interface';
 import { CommandMetadata, CommandContext, MintParams } from '@types';
-import { waitForTransaction } from '@/providers/ProviderContext';
 import { validateAddress, validatePositiveNumber, logger } from '@utils';
-import { ERC721_COLLECTION_ABI } from '@/shared/abis/collectionAbis';
 
 export class MintERC721Command extends BaseCommand {
   metadata: CommandMetadata = {
@@ -29,150 +27,38 @@ export class MintERC721Command extends BaseCommand {
       const quantity = args.quantity || 1;
       validatePositiveNumber(quantity, 'Quantity');
 
-      const { provider } = context;
-      const recipient = args.recipient || provider.account;
-
-      // Use minimal ERC721 Collection ABI (not available in API - deployed dynamically)
-      const collection = new ethers.Contract(
-        args.collectionAddress,
-        ERC721_COLLECTION_ABI,
-        provider.signer
-      );
-
-      // Display collection info
-      await this.displayCollectionInfo(collection, args.collectionAddress);
-
-      // Get mint price
-      let mintPrice: bigint;
-      try {
-        mintPrice = await collection.getMintPrice!();
-      } catch {
-        mintPrice = ethers.parseEther('0.01');
-        logger.warning('Using default mint price: 0.01 ETH');
-      }
-
-      logger.info(`Mint Price: ${ethers.formatEther(mintPrice)} ETH`);
-
-      const totalCost = mintPrice * BigInt(quantity);
-      logger.info(`Total Cost for ${quantity} NFT(s): ${ethers.formatEther(totalCost)} ETH`);
+      const recipient = args.recipient || context.account;
 
       logger.subsection('Minting Parameters');
+      logger.info(`Collection: ${args.collectionAddress}`);
       logger.info(`Recipient: ${recipient}`);
       logger.info(`Quantity: ${quantity}`);
       logger.space();
 
-      // Try minting
-      let tx: ethers.ContractTransactionResponse;
-
+      logger.info('Minting via SDK...');
+      
       if (quantity > 1) {
-        try {
-          logger.info('Attempting batch mint...');
-          tx = await collection.batchMintERC721!(recipient, quantity, { value: totalCost });
-        } catch (error) {
-          logger.warning('Batch mint failed, trying single mints...');
-          await this.mintOneByOne(collection, recipient, quantity, mintPrice);
-          return;
-        }
+        const result = await context.sdk.collection.batchMintERC721({
+          collectionAddress: args.collectionAddress,
+          to: recipient,
+          quantity,
+        });
+        logger.success(`Minted ${quantity} NFTs!`);
+        logger.info(`Transaction: ${result.tx.hash}`);
       } else {
-        logger.info('Minting single NFT...');
-        tx = await collection.mint!(recipient, { value: mintPrice });
-      }
-
-      const receipt = await waitForTransaction(tx, 'Mint NFT');
-
-      // Extract token IDs
-      await this.extractTokenIds(collection, receipt);
-
-      // Check new balance
-      try {
-        const balance = await collection.balanceOf!(recipient);
-        logger.success(`New Balance: ${balance} NFTs`);
-      } catch {
-        // Ignore
+        const result = await context.sdk.collection.mintERC721({
+          collectionAddress: args.collectionAddress,
+          to: recipient,
+        });
+        logger.success('Minted 1 NFT!');
+        logger.info(`Token ID: ${result.tokenId}`);
+        logger.info(`Transaction: ${result.tx.hash}`);
       }
 
       this.logSuccess(`Successfully minted ${quantity} NFT(s)!`);
     } catch (error) {
       this.logError(error as Error);
       throw error;
-    }
-  }
-
-  private async displayCollectionInfo(collection: ethers.Contract, address: string): Promise<void> {
-    logger.subsection('Collection Information');
-    logger.info(`Address: ${address}`);
-
-    try {
-      const name = await collection.name!();
-      const symbol = await collection.symbol!();
-      logger.info(`Name: ${name}`);
-      logger.info(`Symbol: ${symbol}`);
-    } catch {
-      logger.warning('Unable to fetch collection name/symbol');
-    }
-
-    try {
-      const totalMinted = await collection.getTotalMinted!();
-      const maxSupply = await collection.getMaxSupply!();
-      logger.info(`Supply: ${totalMinted}/${maxSupply}`);
-    } catch {
-      // Ignore
-    }
-
-    try {
-      const stage = await collection.getCurrentStage!();
-      const stageNames = ['INACTIVE', 'ALLOWLIST', 'PUBLIC'];
-      logger.info(`Current Stage: ${stageNames[stage] || 'UNKNOWN'}`);
-    } catch {
-      // Ignore
-    }
-
-    logger.space();
-  }
-
-  private async mintOneByOne(
-    collection: ethers.Contract,
-    recipient: string,
-    quantity: number,
-    mintPrice: bigint
-  ): Promise<void> {
-    for (let i = 0; i < quantity; i++) {
-      logger.info(`Minting NFT ${i + 1}/${quantity}...`);
-      const tx = await collection.mint!(recipient, { value: mintPrice });
-      await waitForTransaction(tx, `Mint NFT ${i + 1}/${quantity}`);
-    }
-    logger.success(`Successfully minted ${quantity} NFTs one by one!`);
-  }
-
-  private async extractTokenIds(
-    collection: ethers.Contract,
-    receipt: ethers.ContractTransactionReceipt
-  ): Promise<void> {
-    try {
-      const transferEvents = receipt.logs.filter(log => {
-        try {
-          const parsed = collection.interface.parseLog({
-            topics: log.topics as string[],
-            data: log.data,
-          });
-          return parsed?.name === 'Transfer';
-        } catch {
-          return false;
-        }
-      });
-
-      if (transferEvents.length > 0) {
-        logger.subsection('Minted Token IDs');
-        transferEvents.forEach(event => {
-          const parsed = collection.interface.parseLog({
-            topics: event.topics as string[],
-            data: event.data,
-          });
-          logger.info(`Token #${parsed!.args[2]}`);
-        });
-      }
-    } catch {
-      // Event parsing failed
     }
   }
 
