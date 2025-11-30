@@ -4,6 +4,7 @@
  */
 
 import { ethers } from 'ethers';
+import { ZunoSDK } from 'zuno-marketplace-sdk';
 
 // ============================================================================
 // Network & Configuration Types
@@ -12,35 +13,21 @@ import { ethers } from 'ethers';
 export type NetworkName = 'local' | 'sepolia' | 'mainnet';
 
 export interface NetworkConfig {
-  id?: string; // Network ID from API (e.g., net_v1_SVhnLQWuf0RE)
+  id?: string;
   rpcUrl: string;
   chainId: number;
 }
 
-export interface ContractAddresses {
-  erc721Factory: string;
-  erc1155Factory: string;
-  erc721Exchange: string;
-  erc1155Exchange: string;
-  englishAuction?: string;
-  dutchAuction?: string;
-  auctionFactory: string;
-  feeRegistry: string;
-  bundleManager: string;
-  offerManager: string;
-  listingHistoryTracker: string;
-}
-
 // ============================================================================
-// Provider Types
+// SDK Context (replaces old ProviderContext + ABIProvider)
 // ============================================================================
 
-export interface ProviderContext {
+export interface SDKContext {
+  sdk: ZunoSDK;
   provider: ethers.JsonRpcProvider;
   signer: ethers.Signer;
   account: string;
-  config: NetworkConfig;
-  addresses: ContractAddresses;
+  network: NetworkName;
 }
 
 // ============================================================================
@@ -51,33 +38,16 @@ export interface CollectionParams {
   name: string;
   symbol: string;
   owner?: string;
-  description: string;
-  mintPrice: string | bigint;
-  royaltyFee: number;
+  description?: string;
+  mintPrice?: string;
+  royaltyFee?: number;
   maxSupply: number;
-  mintLimitPerWallet: number;
+  mintLimitPerWallet?: number;
   mintStartTime?: number;
-  allowlistMintPrice?: string | bigint;
-  publicMintPrice?: string | bigint;
+  allowlistMintPrice?: string;
+  publicMintPrice?: string;
   allowlistStageDuration?: number;
   tokenURI?: string;
-  baseURI?: string;
-}
-
-export interface FormattedCollectionParams {
-  name: string;
-  symbol: string;
-  owner: string;
-  description: string;
-  mintPrice: bigint;
-  royaltyFee: number;
-  maxSupply: number;
-  mintLimitPerWallet: number;
-  mintStartTime: number;
-  allowlistMintPrice: bigint;
-  publicMintPrice: bigint;
-  allowlistStageDuration: number;
-  tokenURI: string;
 }
 
 // ============================================================================
@@ -85,8 +55,11 @@ export interface FormattedCollectionParams {
 // ============================================================================
 
 export interface CommandContext {
-  provider: ProviderContext;
-  abiProvider: IABIProvider;
+  sdk: ZunoSDK;
+  provider: ethers.JsonRpcProvider;
+  signer: ethers.Signer;
+  account: string;
+  network: NetworkName;
 }
 
 export interface CommandMetadata {
@@ -100,74 +73,6 @@ export interface ICommand {
   metadata: CommandMetadata;
   execute(context: CommandContext, args?: any): Promise<void>;
   getPrompts?(): Promise<any[]>;
-}
-
-// ============================================================================
-// ABI Provider Types
-// ============================================================================
-
-export interface IABIProvider {
-  getABI(contractName: string, options?: ABIFetchOptions): Promise<any>;
-  getContractInterface(contractName: string): Promise<ethers.Interface>;
-}
-
-export type ABIProviderType = 'api';
-
-export interface ABIFetchOptions {
-  version?: string; // '1.0.0' or 'latest'
-  abiHash?: string; // For exact pinning
-  bypassCache?: boolean;
-}
-
-// ============================================================================
-// ABI API Response Types
-// ============================================================================
-
-export interface ABIApiResponse {
-  success: boolean;
-  data: {
-    data: ABIItemDto[];
-    pagination: {
-      page: number;
-      limit: number;
-      total: number;
-      totalPages: number;
-      hasNext: boolean;
-      hasPrev: boolean;
-    };
-  };
-  meta: {
-    timestamp: string;
-    version: string;
-  };
-}
-
-export interface ABIItemDto {
-  id: string;
-  name: string;
-  description: string | null;
-  contractName: string | null;
-  abi: any; // The actual ABI JSON
-  abiHash: string;
-  version: string;
-  tags: string[];
-  standard: string | null;
-  metadata: Record<string, any> | null;
-  ipfsHash: string | null;
-  ipfsUrl: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface CachedABI {
-  abi: any;
-  metadata: {
-    contractName: string;
-    version: string;
-    abiHash: string;
-    cachedAt: number;
-    expiresAt: number;
-  };
 }
 
 // ============================================================================
