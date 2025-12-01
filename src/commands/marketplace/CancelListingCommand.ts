@@ -1,25 +1,25 @@
 /**
- * Buy NFT Command
- * Purchases an NFT from the marketplace
+ * Cancel Listing Command
+ * Cancels an active NFT listing on the marketplace
  */
 
 import { BaseCommand } from '@core/Command.interface';
 import { CommandMetadata, CommandContext } from '@types';
 import { logger } from '@utils';
 
-interface BuyNFTParams {
+interface CancelListingParams {
   listingId: string;
 }
 
-export class BuyNFTCommand extends BaseCommand {
+export class CancelListingCommand extends BaseCommand {
   metadata: CommandMetadata = {
-    name: 'buy-nft',
-    description: 'Buy NFT from marketplace',
+    name: 'cancel-listing',
+    description: 'Cancel an active NFT listing',
     category: 'marketplace',
-    aliases: ['buy'],
+    aliases: ['cancel'],
   };
 
-  async execute(context: CommandContext, args?: BuyNFTParams): Promise<void> {
+  async execute(context: CommandContext, args?: CancelListingParams): Promise<void> {
     this.logStart();
 
     try {
@@ -28,6 +28,7 @@ export class BuyNFTCommand extends BaseCommand {
       }
 
       // Convert listing ID to hex format if it's a decimal string
+      // SDK expects bytes32 format (0x...)
       let listingId = args.listingId;
       if (!listingId.startsWith('0x')) {
         listingId = '0x' + BigInt(listingId).toString(16).padStart(64, '0');
@@ -37,15 +38,14 @@ export class BuyNFTCommand extends BaseCommand {
       logger.info(`Listing ID (hex): ${listingId}`);
       logger.space();
 
-      logger.info('Purchasing NFT via SDK...');
-      const result = await context.sdk.exchange.buyNFT({
-        listingId,
-      });
+      logger.info('Cancelling listing via SDK...');
+      const result = await context.sdk.exchange.cancelListing(listingId);
 
-      logger.success('NFT Purchased Successfully!');
+      logger.success('Listing Cancelled Successfully!');
       logger.info(`Transaction: ${result.tx.hash}`);
+      logger.info('Your NFT is now unlisted and can be relisted or transferred');
 
-      this.logSuccess('Successfully purchased NFT!');
+      this.logSuccess('Listing cancelled successfully!');
     } catch (error) {
       this.logError(error as Error);
       throw error;

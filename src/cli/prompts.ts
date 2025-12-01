@@ -7,7 +7,7 @@ import inquirer from 'inquirer';
 import { commandRegistry } from '@core/CommandRegistry';
 import { NetworkName } from '@types';
 import { getAvailableNetworks } from '@config/network.config';
-import { getAvailableAccounts, AccountInfo } from '@/providers/ProviderContext';
+import { getAvailableAccounts } from '@/providers/SDKContext';
 
 /**
  * Main menu prompt
@@ -148,7 +148,7 @@ export async function promptAccountSelection(network: NetworkName): Promise<numb
   const displayAccounts = accounts.slice(0, 10);
 
   const choices = [
-    ...displayAccounts.map((acc: AccountInfo) => ({
+    ...displayAccounts.map((acc) => ({
       name: `Account #${acc.index}: ${acc.address} (${parseFloat(acc.balance).toFixed(4)} ETH)`,
       value: acc.index,
     })),

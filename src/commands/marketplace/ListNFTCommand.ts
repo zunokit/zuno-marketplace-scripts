@@ -5,17 +5,16 @@
 
 import { ethers } from 'ethers';
 import { BaseCommand } from '@core/Command.interface';
-import { CommandMetadata, CommandContext } from '@types';
-import { waitForTransaction } from '@/providers/ProviderContext';
+import { CommandMetadata, CommandContext, PromptQuestion } from '@types';
 import { validateAddress, validatePositiveNumber, logger } from '@utils';
-import { detectNFTStandard, checkOwnership, checkApproval, approveOperator } from '@/utils/nft.utils';
+import { daysToSeconds, DEFAULT_LISTING_DURATION_DAYS } from '@/shared/constants';
 
 interface ListNFTParams {
   nftAddress: string;
   tokenId: number | string;
-  price: string; // in ETH
-  duration: number; // in days
-  amount?: number; // for ERC1155 only
+  price: string;
+  duration: number;
+  amount?: number;
 }
 
 export class ListNFTCommand extends BaseCommand {
@@ -39,167 +38,76 @@ export class ListNFTCommand extends BaseCommand {
       validatePositiveNumber(Number(args.price), 'Price');
       validatePositiveNumber(args.duration, 'Duration');
 
-      const { provider } = context;
-      const nftAddress = args.nftAddress;
-      const tokenId = args.tokenId;
-      const priceInWei = ethers.parseEther(args.price);
-      const durationInSeconds = args.duration * 24 * 60 * 60;
-
       logger.subsection('Listing Details');
-      logger.info(`NFT Contract: ${nftAddress}`);
-      logger.info(`Token ID: ${tokenId}`);
+      logger.info(`NFT Contract: ${args.nftAddress}`);
+      logger.info(`Token ID: ${args.tokenId}`);
       logger.info(`Price: ${args.price} ETH`);
       logger.info(`Duration: ${args.duration} days`);
       logger.space();
 
-      // Create NFT contract instance with minimal interface (works for both ERC721 and ERC1155)
-      const nftInterface = new ethers.Interface([
-        'function supportsInterface(bytes4) view returns (bool)',
-        'function ownerOf(uint256) view returns (address)',
-        'function balanceOf(address,uint256) view returns (uint256)',
-        'function isApprovedForAll(address,address) view returns (bool)',
-        'function setApprovalForAll(address,bool)',
-      ]);
-      const nftContract = new ethers.Contract(nftAddress, nftInterface, provider.signer);
+      logger.info('Listing NFT via SDK...');
+      const result = await context.sdk.exchange.listNFT({
+        collectionAddress: args.nftAddress,
+        tokenId: String(args.tokenId),
+        price: args.price,
+        duration: daysToSeconds(args.duration),
+      });
 
-      // Detect NFT standard
-      logger.info('Detecting NFT type...');
-      const standard = await detectNFTStandard(nftContract, tokenId);
-      logger.success(`Detected ${standard} NFT`);
+      logger.success('NFT Listed Successfully!');
+      logger.info(`Listing ID: ${result.listingId}`);
+      // Convert to hex for display (needed for buy/cancel operations)
+      const listingIdHex = result.listingId.startsWith('0x')
+        ? result.listingId
+        : '0x' + BigInt(result.listingId).toString(16).padStart(64, '0');
+      logger.info(`Listing ID (hex): ${listingIdHex}`);
+      logger.info(`Transaction: ${result.tx.hash}`);
 
-      // Determine exchange address
-      let exchangeAddress: string;
-      let amount = 1;
-
-      if (standard === 'ERC721') {
-        // Check ownership
-        const isOwner = await checkOwnership(nftContract, tokenId, provider.account);
-        if (!isOwner) {
-          throw new Error(`You don't own token ID ${tokenId}`);
-        }
-        exchangeAddress = provider.addresses.erc721Exchange;
-      } else {
-        // ERC1155
-        const balance = await nftContract.balanceOf!(provider.account, tokenId);
-        logger.info(`Your balance: ${balance}`);
-
-        if (balance === 0n) {
-          throw new Error(`You don't own any tokens of ID ${tokenId}`);
-        }
-
-        amount = args.amount || 1;
-        if (BigInt(amount) > balance) {
-          throw new Error(`You only have ${balance} tokens, cannot list ${amount}`);
-        }
-
-        exchangeAddress = provider.addresses.erc1155Exchange;
-      }
-
-      logger.info(`Exchange address: ${exchangeAddress}`);
-      logger.space();
-
-      // Check and handle approval
-      logger.info('Checking approval status...');
-      const isApproved = await checkApproval(nftContract, provider.account, exchangeAddress);
-
-      if (!isApproved) {
-        logger.warning('Not approved. Approving marketplace...');
-        const approveTx = await approveOperator(nftContract, exchangeAddress);
-        await waitForTransaction(approveTx, 'Approve Marketplace');
-        logger.success('Marketplace approved!');
-      } else {
-        logger.success('Already approved!');
-      }
-      logger.space();
-
-      // List the NFT
-      logger.info('Listing NFT on marketplace...');
-
-      // Get exchange ABI from API based on standard
-      const exchangeABIName = standard === 'ERC721' ? 'ERC721NFTExchange' : 'ERC1155NFTExchange';
-      const exchangeABI = await context.abiProvider.getABI(exchangeABIName);
-
-      const exchange = new ethers.Contract(exchangeAddress, exchangeABI, provider.signer);
-
-      let tx: ethers.ContractTransactionResponse;
-
-      if (standard === 'ERC721') {
-        tx = await exchange['listNFT(address,uint256,uint256,uint256)']!(
-          nftAddress,
-          tokenId,
-          priceInWei,
-          durationInSeconds
-        );
-      } else {
-        tx = await exchange['listNFT(address,uint256,uint256,uint256,uint256)']!(
-          nftAddress,
-          tokenId,
-          amount,
-          priceInWei,
-          durationInSeconds
-        );
-      }
-
-      const receipt = await waitForTransaction(tx, 'List NFT');
-
-      // Extract listing ID from events
-      try {
-        const listingEvent = receipt.logs.find(
-          (log) =>
-            log.topics[0] ===
-            ethers.id('NFTListed(bytes32,address,uint256,address,uint256,uint256,address,uint256)')
-        );
-
-        if (listingEvent) {
-          const listingId = listingEvent.topics[1];
-          logger.success('NFT Listed Successfully!');
-          logger.info(`Listing ID: ${listingId}`);
-        }
-      } catch {
-        // Event parsing failed
-      }
-
-      // Calculate expiration
-      const expirationDate = new Date(Date.now() + durationInSeconds * 1000);
+      const expirationDate = new Date(Date.now() + daysToSeconds(args.duration) * 1000);
       logger.info(`Expires: ${expirationDate.toLocaleString()}`);
 
-      this.logSuccess(`NFT listed successfully on marketplace!`);
+      this.logSuccess('NFT listed successfully on marketplace!');
     } catch (error) {
-      this.logError(error as Error);
+      const err = error as Error;
+      this.logError(err);
+      logger.error(`Failed to list NFT: ${err.message}`);
       throw error;
     }
   }
 
-  async getPrompts(): Promise<any[]> {
+  async getPrompts(): Promise<PromptQuestion[]> {
     return [
       {
         type: 'input',
         name: 'nftAddress',
         message: 'NFT contract address:',
-        validate: (input: string) => ethers.isAddress(input) || 'Invalid address',
+        validate: (input: unknown) => {
+          const addr = String(input);
+          return ethers.isAddress(addr) || 'Invalid address';
+        },
       },
       {
         type: 'input',
         name: 'tokenId',
         message: 'Token ID:',
-        validate: (input: string) => !isNaN(Number(input)) || 'Invalid token ID',
+        validate: (input: unknown) => !isNaN(Number(input)) || 'Invalid token ID',
       },
       {
         type: 'input',
         name: 'price',
         message: 'Listing price (in ETH):',
-        validate: (input: string) => !isNaN(Number(input)) && Number(input) > 0 || 'Invalid price',
+        validate: (input: unknown) =>
+          (!isNaN(Number(input)) && Number(input) > 0) || 'Invalid price',
       },
       {
         type: 'number',
         name: 'duration',
         message: 'Listing duration (in days):',
-        default: 7,
+        default: DEFAULT_LISTING_DURATION_DAYS,
       },
       {
         type: 'number',
         name: 'amount',
-        message: 'Amount to list (for ERC1155, leave empty for 1):',
+        message: 'Amount to list (for ERC1155):',
         default: 1,
       },
     ];
