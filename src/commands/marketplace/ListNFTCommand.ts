@@ -5,8 +5,9 @@
 
 import { ethers } from 'ethers';
 import { BaseCommand } from '@core/Command.interface';
-import { CommandMetadata, CommandContext } from '@types';
+import { CommandMetadata, CommandContext, PromptQuestion } from '@types';
 import { validateAddress, validatePositiveNumber, logger } from '@utils';
+import { daysToSeconds, DEFAULT_LISTING_DURATION_DAYS } from '@/shared/constants';
 
 interface ListNFTParams {
   nftAddress: string;
@@ -49,7 +50,7 @@ export class ListNFTCommand extends BaseCommand {
         collectionAddress: args.nftAddress,
         tokenId: String(args.tokenId),
         price: args.price,
-        duration: args.duration * 24 * 60 * 60,
+        duration: daysToSeconds(args.duration),
       });
 
       logger.success('NFT Listed Successfully!');
@@ -61,41 +62,47 @@ export class ListNFTCommand extends BaseCommand {
       logger.info(`Listing ID (hex): ${listingIdHex}`);
       logger.info(`Transaction: ${result.tx.hash}`);
 
-      const expirationDate = new Date(Date.now() + args.duration * 24 * 60 * 60 * 1000);
+      const expirationDate = new Date(Date.now() + daysToSeconds(args.duration) * 1000);
       logger.info(`Expires: ${expirationDate.toLocaleString()}`);
 
       this.logSuccess('NFT listed successfully on marketplace!');
     } catch (error) {
-      this.logError(error as Error);
+      const err = error as Error;
+      this.logError(err);
+      logger.error(`Failed to list NFT: ${err.message}`);
       throw error;
     }
   }
 
-  async getPrompts(): Promise<any[]> {
+  async getPrompts(): Promise<PromptQuestion[]> {
     return [
       {
         type: 'input',
         name: 'nftAddress',
         message: 'NFT contract address:',
-        validate: (input: string) => ethers.isAddress(input) || 'Invalid address',
+        validate: (input: unknown) => {
+          const addr = String(input);
+          return ethers.isAddress(addr) || 'Invalid address';
+        },
       },
       {
         type: 'input',
         name: 'tokenId',
         message: 'Token ID:',
-        validate: (input: string) => !isNaN(Number(input)) || 'Invalid token ID',
+        validate: (input: unknown) => !isNaN(Number(input)) || 'Invalid token ID',
       },
       {
         type: 'input',
         name: 'price',
         message: 'Listing price (in ETH):',
-        validate: (input: string) => (!isNaN(Number(input)) && Number(input) > 0) || 'Invalid price',
+        validate: (input: unknown) =>
+          (!isNaN(Number(input)) && Number(input) > 0) || 'Invalid price',
       },
       {
         type: 'number',
         name: 'duration',
         message: 'Listing duration (in days):',
-        default: 7,
+        default: DEFAULT_LISTING_DURATION_DAYS,
       },
       {
         type: 'number',

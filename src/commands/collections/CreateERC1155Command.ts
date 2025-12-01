@@ -3,8 +3,14 @@
  */
 
 import { BaseCommand } from '@core/Command.interface';
-import { CommandMetadata, CommandContext, CollectionParams } from '@types';
+import {
+  CommandMetadata,
+  CommandContext,
+  CreateERC1155CollectionParams,
+  PromptQuestion,
+} from '@types';
 import { logger } from '@utils';
+import { DEFAULT_MINT_LIMIT_PER_WALLET, DEFAULT_ROYALTY_FEE_BPS } from '@/shared/constants';
 
 export class CreateERC1155Command extends BaseCommand {
   metadata: CommandMetadata = {
@@ -14,19 +20,22 @@ export class CreateERC1155Command extends BaseCommand {
     aliases: ['erc1155', 'create1155'],
   };
 
-  async execute(context: CommandContext, args?: Partial<CollectionParams>): Promise<void> {
+  async execute(
+    context: CommandContext,
+    args?: Partial<CreateERC1155CollectionParams>
+  ): Promise<void> {
     this.logStart();
 
     try {
       const maxSupply = args?.maxSupply || 10000;
-      const params = {
+      const params: CreateERC1155CollectionParams = {
         name: args?.name || 'Zuno ERC1155 Collection',
         symbol: args?.symbol || 'ZUNO1155',
         maxSupply,
         mintPrice: args?.mintPrice || '0.01',
-        royaltyFee: args?.royaltyFee || 500,
+        royaltyFee: args?.royaltyFee !== undefined ? args.royaltyFee : DEFAULT_ROYALTY_FEE_BPS,
         // IMPORTANT: mintLimitPerWallet must be > 0, otherwise minting is blocked
-        mintLimitPerWallet: args?.mintLimitPerWallet || maxSupply,
+        mintLimitPerWallet: args?.mintLimitPerWallet ?? maxSupply,
         // Skip allowlist stage for public minting
         allowlistStageDuration: 0,
         tokenURI: args?.tokenURI || 'https://api.example.com/erc1155/metadata/{id}',
@@ -36,7 +45,7 @@ export class CreateERC1155Command extends BaseCommand {
       logger.info(`Name: ${params.name}`);
       logger.info(`Symbol: ${params.symbol}`);
       logger.info(`Mint Price: ${params.mintPrice} ETH`);
-      logger.info(`Royalty: ${params.royaltyFee / 100}%`);
+      logger.info(`Royalty: ${(params.royaltyFee ?? 0) / 100}%`);
       logger.info(`Max Supply: ${params.maxSupply}`);
       logger.space();
 
@@ -49,19 +58,31 @@ export class CreateERC1155Command extends BaseCommand {
 
       this.logSuccess(`ERC1155 collection deployed at: ${result.address}`);
     } catch (error) {
-      this.logError(error as Error);
+      const err = error as Error;
+      this.logError(err);
+      logger.error(`Failed to create ERC1155 collection: ${err.message}`);
       throw error;
     }
   }
 
-  async getPrompts(): Promise<any[]> {
+  async getPrompts(): Promise<PromptQuestion[]> {
     return [
       { type: 'input', name: 'name', message: 'Collection name:', default: 'Zuno ERC1155 Collection' },
       { type: 'input', name: 'symbol', message: 'Collection symbol:', default: 'ZUNO1155' },
       { type: 'input', name: 'mintPrice', message: 'Mint price (in ETH):', default: '0.01' },
-      { type: 'number', name: 'royaltyFee', message: 'Royalty fee (basis points, 500 = 5%):', default: 500 },
+      {
+        type: 'number',
+        name: 'royaltyFee',
+        message: 'Royalty fee (basis points, 500 = 5%):',
+        default: DEFAULT_ROYALTY_FEE_BPS,
+      },
       { type: 'number', name: 'maxSupply', message: 'Max supply:', default: 10000 },
-      { type: 'number', name: 'mintLimitPerWallet', message: 'Mint limit per wallet:', default: 1000 },
+      {
+        type: 'number',
+        name: 'mintLimitPerWallet',
+        message: 'Mint limit per wallet:',
+        default: DEFAULT_MINT_LIMIT_PER_WALLET,
+      },
     ];
   }
 }

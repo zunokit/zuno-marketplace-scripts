@@ -5,8 +5,9 @@
 
 import { ethers } from 'ethers';
 import { BaseCommand } from '@core/Command.interface';
-import { CommandMetadata, CommandContext } from '@types';
+import { CommandMetadata, CommandContext, PromptQuestion } from '@types';
 import { validateAddress, validatePositiveNumber, logger } from '@utils';
+import { daysToSeconds, DEFAULT_LISTING_DURATION_DAYS } from '@/shared/constants';
 
 interface BatchListNFTParams {
   collectionAddress: string;
@@ -60,56 +61,71 @@ export class BatchListNFTCommand extends BaseCommand {
         collectionAddress: args.collectionAddress,
         tokenIds: args.tokenIds,
         prices: args.prices,
-        duration: args.duration * 24 * 60 * 60,
+        duration: daysToSeconds(args.duration),
       });
 
       logger.success('Batch Listing Successful!');
       logger.info(`Listing IDs: ${result.listingIds.join(', ')}`);
       logger.info(`Transaction: ${result.tx.hash}`);
 
-      const expirationDate = new Date(Date.now() + args.duration * 24 * 60 * 60 * 1000);
+      const expirationDate = new Date(Date.now() + daysToSeconds(args.duration) * 1000);
       logger.info(`All listings expire: ${expirationDate.toLocaleString()}`);
 
       this.logSuccess(`${args.tokenIds.length} NFTs listed in 1 transaction!`);
     } catch (error) {
-      this.logError(error as Error);
+      const err = error as Error;
+      this.logError(err);
+      logger.error(`Failed to batch list NFTs: ${err.message}`);
       throw error;
     }
   }
 
-  async getPrompts(): Promise<any[]> {
+  async getPrompts(): Promise<PromptQuestion[]> {
     return [
       {
         type: 'input',
         name: 'collectionAddress',
         message: 'Collection address:',
-        validate: (input: string) => ethers.isAddress(input) || 'Invalid address',
+        validate: (input: unknown) => {
+          const addr = String(input);
+          return ethers.isAddress(addr) || 'Invalid address';
+        },
       },
       {
         type: 'input',
         name: 'tokenIds',
         message: 'Token IDs (comma-separated, e.g., 1,2,3):',
-        filter: (input: string) => input.split(',').map(s => s.trim()),
-        validate: (input: string) => {
-          const ids = input.split(',').map(s => s.trim());
-          return ids.every(id => !isNaN(Number(id))) || 'Invalid token IDs';
+        filter: (input: unknown) =>
+          String(input)
+            .split(',')
+            .map((s) => s.trim()),
+        validate: (input: unknown) => {
+          const ids = String(input)
+            .split(',')
+            .map((s) => s.trim());
+          return ids.every((id) => !isNaN(Number(id))) || 'Invalid token IDs';
         },
       },
       {
         type: 'input',
         name: 'prices',
         message: 'Prices in ETH (comma-separated, e.g., 0.1,0.2,0.15):',
-        filter: (input: string) => input.split(',').map(s => s.trim()),
-        validate: (input: string) => {
-          const prices = input.split(',').map(s => s.trim());
-          return prices.every(p => !isNaN(Number(p)) && Number(p) > 0) || 'Invalid prices';
+        filter: (input: unknown) =>
+          String(input)
+            .split(',')
+            .map((s) => s.trim()),
+        validate: (input: unknown) => {
+          const prices = String(input)
+            .split(',')
+            .map((s) => s.trim());
+          return prices.every((p) => !isNaN(Number(p)) && Number(p) > 0) || 'Invalid prices';
         },
       },
       {
         type: 'number',
         name: 'duration',
         message: 'Listing duration (in days):',
-        default: 7,
+        default: DEFAULT_LISTING_DURATION_DAYS,
       },
     ];
   }

@@ -5,8 +5,9 @@
 
 import { ethers } from 'ethers';
 import { BaseCommand } from '@core/Command.interface';
-import { CommandMetadata, CommandContext } from '@types';
+import { CommandMetadata, CommandContext, PromptQuestion } from '@types';
 import { validateAddress, validatePositiveNumber, logger } from '@utils';
+import { daysToSeconds, DEFAULT_AUCTION_DURATION_DAYS } from '@/shared/constants';
 
 interface BatchCreateAuctionParams {
   auctionType: 'english' | 'dutch';
@@ -44,7 +45,7 @@ export class BatchCreateAuctionCommand extends BaseCommand {
       validatePositiveNumber(args.duration, 'Duration');
 
       const isEnglish = args.auctionType === 'english';
-      const durationInSeconds = args.duration * 24 * 60 * 60;
+      const durationInSeconds = daysToSeconds(args.duration);
 
       logger.subsection('Batch Auction Details');
       logger.info(`Type: ${isEnglish ? 'English' : 'Dutch'} Auction`);
@@ -86,14 +87,18 @@ export class BatchCreateAuctionCommand extends BaseCommand {
       const endTime = new Date(Date.now() + durationInSeconds * 1000);
       logger.info(`All auctions end: ${endTime.toLocaleString()}`);
 
-      this.logSuccess(`${args.tokenIds.length} ${isEnglish ? 'English' : 'Dutch'} auctions created in 1 transaction!`);
+      this.logSuccess(
+        `${args.tokenIds.length} ${isEnglish ? 'English' : 'Dutch'} auctions created in 1 transaction!`
+      );
     } catch (error) {
-      this.logError(error as Error);
+      const err = error as Error;
+      this.logError(err);
+      logger.error(`Failed to batch create auctions: ${err.message}`);
       throw error;
     }
   }
 
-  async getPrompts(): Promise<any[]> {
+  async getPrompts(): Promise<PromptQuestion[]> {
     return [
       {
         type: 'list',
@@ -108,44 +113,53 @@ export class BatchCreateAuctionCommand extends BaseCommand {
         type: 'input',
         name: 'collectionAddress',
         message: 'Collection address:',
-        validate: (input: string) => ethers.isAddress(input) || 'Invalid address',
+        validate: (input: unknown) => {
+          const addr = String(input);
+          return ethers.isAddress(addr) || 'Invalid address';
+        },
       },
       {
         type: 'input',
         name: 'tokenIds',
         message: 'Token IDs (comma-separated, e.g., 1,2,3):',
-        filter: (input: string) => input.split(',').map(s => s.trim()),
-        validate: (input: string) => {
-          const ids = input.split(',').map(s => s.trim());
-          return ids.every(id => !isNaN(Number(id))) || 'Invalid token IDs';
+        filter: (input: unknown) => String(input).split(',').map((s) => s.trim()),
+        validate: (input: unknown) => {
+          const ids = String(input)
+            .split(',')
+            .map((s) => s.trim());
+          return ids.every((id) => !isNaN(Number(id))) || 'Invalid token IDs';
         },
       },
       {
         type: 'input',
         name: 'startingPrice',
-        message: (answers: any) =>
-          answers.auctionType === 'english' ? 'Starting bid (in ETH):' : 'Starting price (high, in ETH):',
-        validate: (input: string) => (!isNaN(Number(input)) && Number(input) > 0) || 'Invalid price',
+        message: (answers: Record<string, unknown>) =>
+          answers.auctionType === 'english'
+            ? 'Starting bid (in ETH):'
+            : 'Starting price (high, in ETH):',
+        validate: (input: unknown) =>
+          (!isNaN(Number(input)) && Number(input) > 0) || 'Invalid price',
       },
       {
         type: 'input',
         name: 'endingPrice',
         message: 'Ending price (minimum price, in ETH):',
-        when: (answers: any) => answers.auctionType === 'dutch',
-        validate: (input: string) => (!isNaN(Number(input)) && Number(input) > 0) || 'Invalid price',
+        when: (answers: Record<string, unknown>) => answers.auctionType === 'dutch',
+        validate: (input: unknown) =>
+          (!isNaN(Number(input)) && Number(input) > 0) || 'Invalid price',
       },
       {
         type: 'input',
         name: 'reservePrice',
         message: 'Reserve price (in ETH, leave empty to use starting price):',
-        when: (answers: any) => answers.auctionType === 'english',
+        when: (answers: Record<string, unknown>) => answers.auctionType === 'english',
         default: '',
       },
       {
         type: 'number',
         name: 'duration',
         message: 'Auction duration (in days):',
-        default: 7,
+        default: DEFAULT_AUCTION_DURATION_DAYS,
       },
     ];
   }

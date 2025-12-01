@@ -56,12 +56,11 @@ export class BatchMintERC721Command extends BaseCommand {
       const result = await context.sdk.collection.batchMintERC721({
         collectionAddress: args.collectionAddress,
         recipient,
-        quantity,
+        amount: quantity,
         value: totalValue.toString(),
       });
 
       logger.success(`Batch minted ${quantity} NFT(s)!`);
-      logger.info(`Token IDs: ${result.tokenIds.join(', ')}`);
       logger.info(`Transaction: ${result.tx.hash}`);
 
       this.logSuccess(`Successfully batch minted ${quantity} ERC721 NFT(s)!`);

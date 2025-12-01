@@ -5,6 +5,32 @@
 import { ethers } from 'ethers';
 import { ZunoSDK } from 'zuno-marketplace-sdk';
 
+// Re-export SDK types for convenience
+export type {
+  CreateERC721CollectionParams,
+  CreateERC1155CollectionParams,
+  MintERC721Params,
+  MintERC1155Params,
+  BatchMintERC721Params,
+  ListNFTParams,
+  BatchListNFTParams,
+  BuyNFTParams,
+  BatchBuyNFTParams,
+  CancelListingParams,
+  BatchCancelListingParams,
+  CreateEnglishAuctionParams,
+  CreateDutchAuctionParams,
+  BatchCreateEnglishAuctionParams,
+  BatchCreateDutchAuctionParams,
+  PlaceBidParams,
+  TransactionOptions,
+  TransactionReceipt,
+  Listing,
+  Collection,
+  Auction,
+  TokenStandard,
+} from 'zuno-marketplace-sdk';
+
 // Network Types
 export type NetworkName = 'local' | 'sepolia' | 'mainnet';
 
@@ -31,25 +57,20 @@ export interface CommandMetadata {
 
 export interface ICommand {
   metadata: CommandMetadata;
-  execute(context: CommandContext, args?: any): Promise<void>;
-  getPrompts?(): Promise<any[]>;
+  execute(context: CommandContext, args?: unknown): Promise<void>;
+  getPrompts?(): Promise<PromptQuestion[]>;
 }
 
-// Collection Params (for CLI prompts)
-export interface CollectionParams {
+/**
+ * Inquirer prompt question type
+ */
+export interface PromptQuestion {
+  type: string;
   name: string;
-  symbol: string;
-  maxSupply: number;
-  mintPrice?: string;
-  royaltyFee?: number;
-  mintLimitPerWallet?: number;
-  tokenURI?: string;
-}
-
-// Mint Params (for CLI prompts)
-export interface MintParams {
-  collectionAddress: string;
-  recipient?: string;
-  quantity?: number;
-  amount?: number;
+  message: string | ((answers: Record<string, unknown>) => string);
+  default?: unknown;
+  choices?: Array<{ name: string; value: unknown }>;
+  validate?: (input: unknown, answers?: Record<string, unknown>) => boolean | string;
+  when?: (answers: Record<string, unknown>) => boolean;
+  filter?: (input: unknown) => unknown;
 }

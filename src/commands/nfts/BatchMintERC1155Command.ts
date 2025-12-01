@@ -11,8 +11,8 @@ import { validateAddress, validatePositiveNumber, logger } from '@utils';
 interface BatchMintERC1155Params {
   collectionAddress: string;
   recipient?: string;
-  tokenIds: string[];
-  amounts: number[];
+  tokenId?: string;
+  amount: number;
   mintPrice?: string;
 }
 
@@ -32,33 +32,20 @@ export class BatchMintERC1155Command extends BaseCommand {
         throw new Error('Collection address is required');
       }
 
-      if (!args.tokenIds || !args.amounts) {
-        throw new Error('Token IDs and amounts are required');
-      }
-
-      if (args.tokenIds.length !== args.amounts.length) {
-        throw new Error('tokenIds and amounts arrays must have the same length');
-      }
+      const amount = args.amount || 1;
+      validatePositiveNumber(amount, 'Amount');
 
       validateAddress(args.collectionAddress, 'Collection address');
-      args.tokenIds.forEach((id, i) => validatePositiveNumber(Number(id), `Token ID ${i + 1}`));
-      args.amounts.forEach((amt, i) => validatePositiveNumber(amt, `Amount ${i + 1}`));
 
       const recipient = args.recipient || context.account;
       const mintPrice = args.mintPrice || '0';
-      const totalAmount = args.amounts.reduce((sum, amt) => sum + amt, 0);
-      const totalValue = mintPrice !== '0' 
-        ? ethers.parseEther(mintPrice) * BigInt(totalAmount)
-        : 0n;
+      const totalValue =
+        mintPrice !== '0' ? ethers.parseEther(mintPrice) * BigInt(amount) : 0n;
 
       logger.subsection('Batch Minting Parameters');
       logger.info(`Collection: ${args.collectionAddress}`);
       logger.info(`Recipient: ${recipient}`);
-      logger.info(`Token Types: ${args.tokenIds.length}`);
-      args.tokenIds.forEach((id, i) => {
-        logger.info(`  Token #${id}: ${args.amounts[i]} copies`);
-      });
-      logger.info(`Total NFTs: ${totalAmount}`);
+      logger.info(`Amount: ${amount}`);
       if (mintPrice !== '0') {
         logger.info(`Mint Price per NFT: ${mintPrice} ETH`);
         logger.info(`Total Value: ${ethers.formatEther(totalValue)} ETH`);
@@ -70,15 +57,14 @@ export class BatchMintERC1155Command extends BaseCommand {
       const result = await context.sdk.collection.batchMintERC1155({
         collectionAddress: args.collectionAddress,
         recipient,
-        tokenIds: args.tokenIds,
-        amounts: args.amounts,
+        amount,
         value: totalValue.toString(),
       });
 
-      logger.success(`Batch minted ${totalAmount} token(s) across ${args.tokenIds.length} type(s)!`);
+      logger.success(`Batch minted ${amount} token(s)!`);
       logger.info(`Transaction: ${result.tx.hash}`);
 
-      this.logSuccess(`Successfully batch minted ERC1155 tokens!`);
+      this.logSuccess(`Successfully batch minted ${amount} ERC1155 token(s)!`);
     } catch (error) {
       this.logError(error as Error);
       throw error;
