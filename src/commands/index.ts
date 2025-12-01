@@ -7,10 +7,6 @@ export * from './collections';
 export * from './nfts';
 export * from './marketplace';
 export * from './auctions';
-export * from './bundles';
-export * from './offers';
-export * from './analytics';
-export * from './testing';
 
 // Re-export command registry for convenience
 export { commandRegistry } from '@core/CommandRegistry';

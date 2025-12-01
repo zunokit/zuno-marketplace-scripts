@@ -1,5 +1,6 @@
 /**
- * Mint ERC1155 NFT Command
+ * Batch Mint ERC721 NFT Command
+ * Mints multiple ERC721 NFTs in a single transaction
  */
 
 import { ethers } from 'ethers';
@@ -7,22 +8,22 @@ import { BaseCommand } from '@core/Command.interface';
 import { CommandMetadata, CommandContext } from '@types';
 import { validateAddress, validatePositiveNumber, logger } from '@utils';
 
-interface MintERC1155Params {
+interface BatchMintERC721Params {
   collectionAddress: string;
   recipient?: string;
-  amount?: number;
+  quantity: number;
   mintPrice?: string;
 }
 
-export class MintERC1155Command extends BaseCommand {
+export class BatchMintERC721Command extends BaseCommand {
   metadata: CommandMetadata = {
-    name: 'mint-erc1155',
-    description: 'Mint ERC1155 NFTs',
+    name: 'batch-mint-erc721',
+    description: 'Batch mint multiple ERC721 NFTs (1 transaction)',
     category: 'nfts',
-    aliases: ['mint1155'],
+    aliases: ['batch-mint721', 'bmint721'],
   };
 
-  async execute(context: CommandContext, args?: MintERC1155Params): Promise<void> {
+  async execute(context: CommandContext, args?: BatchMintERC721Params): Promise<void> {
     this.logStart();
 
     try {
@@ -31,36 +32,38 @@ export class MintERC1155Command extends BaseCommand {
       }
 
       validateAddress(args.collectionAddress, 'Collection address');
-      const amount = args.amount || 1;
-      validatePositiveNumber(amount, 'Amount');
+      const quantity = args.quantity || 1;
+      validatePositiveNumber(quantity, 'Quantity');
 
       const recipient = args.recipient || context.account;
       const mintPrice = args.mintPrice || '0';
+      const totalValue = mintPrice !== '0' 
+        ? ethers.parseEther(mintPrice) * BigInt(quantity)
+        : 0n;
 
-      logger.subsection('Minting Parameters');
+      logger.subsection('Batch Minting Parameters');
       logger.info(`Collection: ${args.collectionAddress}`);
       logger.info(`Recipient: ${recipient}`);
-      logger.info(`Amount: ${amount}`);
+      logger.info(`Quantity: ${quantity}`);
       if (mintPrice !== '0') {
-        logger.info(`Mint Price: ${mintPrice} ETH`);
+        logger.info(`Mint Price per NFT: ${mintPrice} ETH`);
+        logger.info(`Total Value: ${ethers.formatEther(totalValue)} ETH`);
       }
       logger.space();
 
-      logger.info('Minting via SDK...');
+      logger.info('Batch minting via SDK...');
 
-      // Pass value in wei for paid mints
-      const value = mintPrice !== '0' ? ethers.parseEther(mintPrice).toString() : undefined;
-
-      const result = await context.sdk.collection.mintERC1155({
+      const result = await context.sdk.collection.batchMintERC721({
         collectionAddress: args.collectionAddress,
         recipient,
-        amount,
-        value,
+        amount: quantity,
+        value: totalValue.toString(),
       });
-      logger.success(`Minted ${amount} token(s)!`);
+
+      logger.success(`Batch minted ${quantity} NFT(s)!`);
       logger.info(`Transaction: ${result.tx.hash}`);
 
-      this.logSuccess(`Successfully minted ${amount} token(s)!`);
+      this.logSuccess(`Successfully batch minted ${quantity} ERC721 NFT(s)!`);
     } catch (error) {
       this.logError(error as Error);
       throw error;
@@ -77,14 +80,15 @@ export class MintERC1155Command extends BaseCommand {
       },
       {
         type: 'number',
-        name: 'amount',
-        message: 'Amount to mint:',
+        name: 'quantity',
+        message: 'Quantity to mint:',
         default: 1,
+        validate: (input: number) => input > 0 || 'Quantity must be > 0',
       },
       {
         type: 'input',
         name: 'mintPrice',
-        message: 'Mint price in ETH (0 for free mint):',
+        message: 'Mint price per NFT in ETH (0 for free mint):',
         default: '0',
       },
       {

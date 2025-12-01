@@ -5,8 +5,7 @@
  * Main entry point for the interactive CLI
  */
 
-import { createProviderContext } from '@providers/ProviderContext';
-import { createABIProvider } from '@providers/abi';
+import { createSDKContext } from '@providers/SDKContext';
 import { commandRegistry } from '@core/CommandRegistry';
 import { CommandContext, NetworkName } from '@types';
 import { logger } from '@utils';
@@ -59,17 +58,16 @@ class CLI {
     logger.info('Loading accounts...');
     const selectedAccountIndex = await promptAccountSelection(this.network);
 
-    // Create ABI provider first (needed for fetching contract addresses)
-    logger.info('Initializing ABI provider...');
-    const abiProvider = createABIProvider();
-
-    // Create provider context with selected account
-    logger.info('Connecting to network...');
-    const provider = await createProviderContext(this.network, selectedAccountIndex ?? 0);
+    // Create SDK context with selected account
+    logger.info('Initializing SDK...');
+    const sdkContext = await createSDKContext(this.network, selectedAccountIndex ?? 0);
 
     this.context = {
-      provider,
-      abiProvider,
+      sdk: sdkContext.sdk,
+      provider: sdkContext.provider,
+      signer: sdkContext.signer,
+      account: sdkContext.account,
+      network: sdkContext.network,
     };
 
     // Register all commands
