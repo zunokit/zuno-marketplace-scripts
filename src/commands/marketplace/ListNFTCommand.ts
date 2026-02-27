@@ -51,6 +51,7 @@ export class ListNFTCommand extends BaseCommand {
         tokenId: String(args.tokenId),
         price: args.price,
         duration: daysToSeconds(args.duration),
+        amount: args.amount ? String(args.amount) : undefined,
       });
 
       logger.success('NFT Listed Successfully!');
