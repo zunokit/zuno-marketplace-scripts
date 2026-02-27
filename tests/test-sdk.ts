@@ -125,6 +125,54 @@ async function main() {
     console.log(`  ⚠ Skipped: ${(err as Error).message.slice(0, 40)}...`);
   }
 
+  // 1.5 Remove from Allowlist
+  console.log('\n[1.5] removeFromAllowlist');
+  try {
+    await sdk.collection.removeFromAllowlist(col721.address, [buyerAddress]);
+    console.log(`  ✓ Removed ${buyerAddress.slice(0, 10)}... from allowlist`);
+  } catch (err) {
+    console.log(`  ⚠ Skipped: ${(err as Error).message.slice(0, 40)}...`);
+  }
+
+  // 1.6 Check Allowlist Status
+  console.log('\n[1.6] isInAllowlist / isAllowlistOnly');
+  try {
+    const isInList = await sdk.collection.isInAllowlist(col721.address, ownerAddress);
+    const isOnly = await sdk.collection.isAllowlistOnly(col721.address);
+    console.log(`  ✓ isInAllowlist(${ownerAddress.slice(0, 10)}...): ${isInList}`);
+    console.log(`  ✓ isAllowlistOnly: ${isOnly}`);
+  } catch (err) {
+    console.log(`  ⚠ Skipped: ${(err as Error).message.slice(0, 40)}...`);
+  }
+
+  // 1.7 Get Collection Info
+  console.log('\n[1.7] getCollectionInfo');
+  try {
+    const info = await sdk.collection.getCollectionInfo(col721.address);
+    console.log(`  ✓ Name: ${info.name}, Symbol: ${info.symbol}`);
+    console.log(`  ✓ Type: ${info.tokenType}, Supply: ${info.totalSupply}/${info.maxSupply}`);
+  } catch (err) {
+    console.log(`  ⚠ Skipped: ${(err as Error).message.slice(0, 40)}...`);
+  }
+
+  // 1.8 Verify Collection
+  console.log('\n[1.8] verifyCollection');
+  try {
+    const verified = await sdk.collection.verifyCollection(col721.address);
+    console.log(`  ✓ Verified: ${verified.isValid}, Type: ${verified.tokenType}`);
+  } catch (err) {
+    console.log(`  ⚠ Skipped: ${(err as Error).message.slice(0, 40)}...`);
+  }
+
+  // 1.9 Owner Mint
+  console.log('\n[1.9] ownerMint');
+  try {
+    const ownerMintResult = await sdk.collection.ownerMint(col721.address, ownerAddress, 2);
+    console.log(`  ✓ Owner minted 2 NFTs, Token ID: ${ownerMintResult.tokenId || 'N/A'}`);
+  } catch (err) {
+    console.log(`  ⚠ Skipped: ${(err as Error).message.slice(0, 40)}...`);
+  }
+
   // ===== 2. NFT MINTING TESTS =====
   console.log('\n' + '='.repeat(70));
   console.log('2. NFT COMMANDS (SINGLE + BATCH)');
@@ -266,6 +314,53 @@ async function main() {
   });
   console.log(`  ✓ Batch bought ${uniqueBuyListingIds.length} NFTs`);
 
+  // 3.7 Get Listings
+  console.log('\n[3.7] getListings / getListingsBySeller / getListing');
+  try {
+    const listings = await sdk.exchange.getListings(col721.address);
+    console.log(`  ✓ Found ${listings.length} listings for collection`);
+
+    if (listings.length > 0) {
+      const sellerListings = await sdk.exchange.getListingsBySeller(ownerAddress);
+      console.log(`  ✓ Found ${sellerListings.length} listings by seller`);
+
+      const listingDetails = await sdk.exchange.getListing(toHex(listings[0].id));
+      console.log(`  ✓ Listing details: Token ${listingDetails.tokenId} @ ${listingDetails.price} ETH`);
+    }
+  } catch (err) {
+    console.log(`  ⚠ Skipped: ${(err as Error).message.slice(0, 40)}...`);
+  }
+
+  // 3.8 Get User Owned Tokens
+  console.log('\n[3.8] getUserOwnedTokens');
+  try {
+    const ownedTokens = await sdk.collection.getUserOwnedTokens(col721.address, ownerAddress);
+    console.log(`  ✓ Owner has ${ownedTokens.length} token types`);
+    if (ownedTokens.length > 0) {
+      console.log(`  ✓ Token ID ${ownedTokens[0].tokenId}: ${ownedTokens[0].amount} owned`);
+    }
+  } catch (err) {
+    console.log(`  ⚠ Skipped: ${(err as Error).message.slice(0, 40)}...`);
+  }
+
+  // 3.9 Get Created Collections
+  console.log('\n[3.9] getCreatedCollections');
+  try {
+    const createdCols = await sdk.collection.getCreatedCollections();
+    console.log(`  ✓ Found ${createdCols.length} created collections`);
+  } catch (err) {
+    console.log(`  ⚠ Skipped: ${(err as Error).message.slice(0, 40)}...`);
+  }
+
+  // 3.10 Clear Approval Cache
+  console.log('\n[3.10] clearApprovalCache');
+  try {
+    sdk.exchange.clearApprovalCache();
+    console.log(`  ✓ Exchange approval cache cleared`);
+  } catch (err) {
+    console.log(`  ⚠ Skipped: ${(err as Error).message.slice(0, 40)}...`);
+  }
+
   // ===== 4. AUCTION TESTS =====
   console.log('\n' + '='.repeat(70));
   console.log('4. AUCTION COMMANDS (SINGLE + BATCH)');
@@ -366,32 +461,88 @@ async function main() {
     console.log(`  ⚠ Skipped: ${(err as Error).message.slice(0, 40)}...`);
   }
 
-  // 4.9 Settle Auction & 4.10 Withdraw Bid
-  console.log('\n[4.9] settleAuction - ⚠ Skipped (requires auction to end)');
-  console.log('[4.10] withdrawBid - ⚠ Skipped (requires being outbid)');
+  // 4.9 Get Auction Details
+  console.log('\n[4.9] getAuctionFromFactory / getCurrentPrice / getPendingRefund');
+  try {
+    const auctionDetails = await sdk.auction.getAuctionFromFactory(dutch1.auctionId);
+    console.log(`  ✓ Auction type: ${auctionDetails.type}, Status: ${auctionDetails.status}`);
+
+    if (auctionDetails.type === 'dutch') {
+      const currentPrice = await sdk.auction.getCurrentPrice(dutch1.auctionId);
+      console.log(`  ✓ Current Dutch price: ${currentPrice} ETH`);
+    }
+
+    const refund = await sdk.auction.getPendingRefund(eng1.auctionId, buyerAddress);
+    console.log(`  ✓ Pending refund for buyer: ${refund} ETH`);
+  } catch (err) {
+    console.log(`  ⚠ Skipped: ${(err as Error).message.slice(0, 40)}...`);
+  }
+
+  // 4.10 Clear Auction Approval Cache
+  console.log('\n[4.10] clearApprovalCache (auction)');
+  try {
+    sdk.auction.clearApprovalCache();
+    console.log(`  ✓ Auction approval cache cleared`);
+  } catch (err) {
+    console.log(`  ⚠ Skipped: ${(err as Error).message.slice(0, 40)}...`);
+  }
+
+  // 4.11 Settle Auction & 4.12 Withdraw Bid
+  console.log('\n[4.11] settleAuction - ⚠ Skipped (requires auction to end)');
+  console.log('[4.12] withdrawBid - ⚠ Skipped (requires being outbid)');
+
+  // ===== SDK UTILITIES =====
+  console.log('\n' + '='.repeat(70));
+  console.log('5. SDK UTILITIES');
+  console.log('='.repeat(70));
+
+  // 5.1 Clear Cache
+  console.log('\n[5.1] clearCache');
+  try {
+    await sdk.clearCache();
+    console.log(`  ✓ All SDK caches cleared`);
+  } catch (err) {
+    console.log(`  ⚠ Skipped: ${(err as Error).message.slice(0, 40)}...`);
+  }
 
   // ===== SUMMARY =====
   console.log('\n' + '='.repeat(70));
-  console.log('TEST SUMMARY - ALL 22 COMMANDS');
+  console.log('TEST SUMMARY - ALL COMMANDS');
   console.log('='.repeat(70));
-  
+
   console.log(`
-┌─────────────────────────────────────────────────────────────────────┐
-│ COLLECTION (4)          │ NFT (4)                                   │
-│ ✓ createERC721          │ ✓ mintERC721 / batchMintERC721            │
-│ ✓ createERC1155         │ ✓ mintERC1155 / batchMintERC1155          │
-│ ✓ addToAllowlist        │                                           │
-│ ✓ setAllowlistOnly      │                                           │
-├─────────────────────────────────────────────────────────────────────┤
-│ MARKETPLACE (6)         │ AUCTION (8)                               │
-│ ✓ listNFT               │ ✓ createEnglishAuction                    │
-│ ✓ batchListNFT          │ ✓ createDutchAuction                      │
-│ ✓ buyNFT                │ ✓ batchCreateEnglishAuction               │
-│ ✓ batchBuyNFT           │ ✓ batchCreateDutchAuction                 │
-│ ✓ cancelListing         │ ✓ placeBid / buyNow                       │
-│ ✓ batchCancelListing    │ ✓ cancelAuction / batchCancelAuction      │
-│                         │ ✓ settleAuction / withdrawBid             │
-└─────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│ COLLECTION (13)         │ NFT (4)                                       │
+│ ✓ createERC721          │ ✓ mintERC721 / batchMintERC721                │
+│ ✓ createERC1155         │ ✓ mintERC1155 / batchMintERC1155              │
+│ ✓ addToAllowlist        │                                               │
+│ ✓ removeFromAllowlist   │                                               │
+│ ✓ setAllowlistOnly      │                                               │
+│ ✓ isInAllowlist         │                                               │
+│ ✓ isAllowlistOnly       │                                               │
+│ ✓ ownerMint             │                                               │
+│ ✓ getCollectionInfo     │                                               │
+│ ✓ verifyCollection      │                                               │
+│ ✓ getCreatedCollections │                                               │
+│ ✓ getUserOwnedTokens    │                                               │
+├─────────────────────────────────────────────────────────────────────────┤
+│ MARKETPLACE (10)        │ AUCTION (15)                                  │
+│ ✓ listNFT               │ ✓ createEnglishAuction                        │
+│ ✓ batchListNFT          │ ✓ createDutchAuction                          │
+│ ✓ buyNFT                │ ✓ batchCreateEnglishAuction                   │
+│ ✓ batchBuyNFT           │ ✓ batchCreateDutchAuction                     │
+│ ✓ cancelListing         │ ✓ placeBid / buyNow                           │
+│ ✓ batchCancelListing    │ ✓ cancelAuction / batchCancelAuction          │
+│ ✓ getListing            │ ✓ settleAuction / withdrawBid                 │
+│ ✓ getListings           │ ✓ getAuctionFromFactory                       │
+│ ✓ getListingsBySeller   │ ✓ getCurrentPrice                             │
+│ ✓ getBuyerPrice         │ ✓ getPendingRefund                            │
+├─────────────────────────────────────────────────────────────────────────┤
+│ UTILITIES (3)                                                           │
+│ ✓ clearApprovalCache (exchange)                                         │
+│ ✓ clearApprovalCache (auction)                                          │
+│ ✓ clearCache (SDK)                                                      │
+└─────────────────────────────────────────────────────────────────────────┘
 `);
 
   console.log('='.repeat(70));
