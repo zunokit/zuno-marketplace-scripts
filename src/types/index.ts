@@ -3,32 +3,44 @@
  */
 
 import { ethers } from 'ethers';
-import { ZunoSDK } from 'zuno-marketplace-sdk';
+import { ZunoSDK, ZunoSDKError } from 'zuno-marketplace-sdk';
+
+// Re-export SDK classes
+export { ZunoSDKError };
 
 // Re-export SDK types for convenience
 export type {
+  // Collection types
   CreateERC721CollectionParams,
   CreateERC1155CollectionParams,
+  CollectionParams,
   MintERC721Params,
   MintERC1155Params,
   BatchMintERC721Params,
+  // Exchange/Marketplace types
   ListNFTParams,
   BatchListNFTParams,
   BuyNFTParams,
   BatchBuyNFTParams,
   CancelListingParams,
   BatchCancelListingParams,
+  // Auction types
   CreateEnglishAuctionParams,
   CreateDutchAuctionParams,
   BatchCreateEnglishAuctionParams,
   BatchCreateDutchAuctionParams,
   PlaceBidParams,
+  // Core types
   TransactionOptions,
   TransactionReceipt,
   Listing,
   Collection,
   Auction,
   TokenStandard,
+  ContractType,
+  // Error types
+  ErrorCode,
+  ErrorContext,
 } from 'zuno-marketplace-sdk';
 
 // Network Types

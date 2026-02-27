@@ -37,9 +37,16 @@ export class BuyNFTCommand extends BaseCommand {
       logger.info(`Listing ID (hex): ${listingId}`);
       logger.space();
 
+      // Get buyer price (includes fees)
+      logger.info('Fetching buyer price...');
+      const buyerPrice = await context.sdk.exchange.getBuyerPrice(listingId);
+      logger.info(`Total price (with fees): ${buyerPrice} ETH`);
+      logger.space();
+
       logger.info('Purchasing NFT via SDK...');
       const result = await context.sdk.exchange.buyNFT({
         listingId,
+        value: buyerPrice,
       });
 
       logger.success('NFT Purchased Successfully!');
